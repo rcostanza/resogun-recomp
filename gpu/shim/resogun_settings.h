@@ -160,6 +160,9 @@ struct Values {
     int startup_render_resolution = Render4k;
     /// What the Display Settings pages save for the next start.
     std::atomic<int> render_resolution{Render4k};
+    /// FSR 1 RCAS sharpening of the picture as the window shows it (key sharpening,
+    /// RESOGUN_SHARPENING; on by default): the presenter reads it at each frame.
+    std::atomic<bool> sharpening{true};
     /// HDR output (key hdr, RESOGUN_HDR; off by default): the game is told the display takes
     /// BT.2020 PQ and switches its own output to HDR. Read once, before the game starts.
     bool startup_hdr = false;
@@ -176,7 +179,7 @@ Values& Get();
 void Load();
 
 /// Writes the display keys (display_mode, monitor, aspect_ratio, window, vsync, tearing, frame_rate,
-/// render_resolution, hdr) into Path() in place: their lines are replaced, missing ones
+/// render_resolution, sharpening, hdr) into Path() in place: their lines are replaced, missing ones
 /// appended, the rest kept (from the default file until Path() exists).
 void SaveDisplay();
 

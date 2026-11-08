@@ -81,6 +81,7 @@ Resogun's add-ons (the extra ships and skins) carry no data of their own: the ga
 - VSync, and tearing with VSync off (the least input delay);
 - frame rate: 30, 60, 90, 120 or 180 (30 for PCs that cannot hold 60), held to what your display refreshes at (180 on a 120 Hz display runs at 120) unless VSync is off with tearing allowed;
 - render resolution (4K or 1080p, at the next start);
+- sharpening (AMD FSR 1 RCAS, on by default), applied at once; **F9** also switches it over the game, to compare;
 - HDR, the game's own HDR output on an HDR display (at the next start; on Windows, turn on **Use HDR** in Display settings first).
 
 `title_back_exits=0` stops Back on the title screen from asking to close the game.
@@ -107,6 +108,7 @@ clicks the touchpad. The keyboard works alongside a gamepad:
 | Shortcut                                | What it does                                |
 | --------------------------------------- | ------------------------------------------- |
 | **F10**, or hold **Select** 2 s         | Display Settings                            |
+| **F9**                                  | sharpening on or off                        |
 | **F4**, or **Back** on the title screen | asks "Exit Resogun?" (No is selected first) |
 | **Alt+F4**                              | closes the game without confirmation        |
 

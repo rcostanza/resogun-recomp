@@ -14,6 +14,7 @@
 #include "video_core/renderer_vulkan/vk_platform.h"
 #include "resogun_overlay.h"
 #include "resogun_graphics.h"
+#include "resogun_settings.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
 #include "video_core/renderer_vulkan/vk_warmup_inbox.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
@@ -371,6 +372,7 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
     }
 
     pp_pass.Create(device, swapchain.GetSurfaceFormat().format);
+    rcas_pass.Create(device, instance.GetAllocator(), swapchain.GetSurfaceFormat().format);
     ResogunOverlay::Init(instance, swapchain.GetSurfaceFormat().format, num_images);
     // resogun: the window was created hidden. Until the game's first frame, a while later,
     // nothing else draws into it, so it gets the start-up picture as soon as it is shown (cloaked on
@@ -708,7 +710,15 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // the post process pass still sRGB encoded and has to be decoded there instead.
     pp_settings.srgb_input =
         attribute.attrib.pixel_format == Libraries::VideoOut::PixelFormat::A2R10G10B10Srgb;
-    pp_pass.Render(cmdbuf, image_view, image_size, *frame, pp_settings);
+    // resogun: with sharpening on, the post process pass draws into the RCAS pass's image and
+    // RCAS draws that into the frame.
+    if (ResogunSettings::Get().sharpening.load(std::memory_order_relaxed)) {
+        pp_pass.Render(cmdbuf, image_view, image_size, rcas_pass.Input(cmdbuf, draw_scheduler, *frame),
+                       pp_settings);
+        rcas_pass.Render(cmdbuf, *frame, HostPasses::RcasPass::DefaultSharpness);
+    } else {
+        pp_pass.Render(cmdbuf, image_view, image_size, *frame, pp_settings);
+    }
     if (frame_dump) {
         // The presented image as the swapchain blit reads it (General after the pass).
         const vk::MemoryBarrier2 done{.srcStageMask = vk::PipelineStageFlagBits2::eAllCommands,

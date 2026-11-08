@@ -119,7 +119,7 @@ constexpr auto kResolutionSettle = std::chrono::seconds(1);
 // guarded by imgui_mutex.
 std::atomic<bool> exit_open{false};
 int exit_focus = 0;
-enum DisplayRow : int { RowAspect, RowMode, RowResolution, RowMonitor, RowVsync, RowFps, RowRender, RowHdr, RowCount };
+enum DisplayRow : int { RowAspect, RowMode, RowResolution, RowMonitor, RowVsync, RowFps, RowRender, RowSharpen, RowHdr, RowCount };
 
 // The colours of the game's own menus (Main Menu, Options): teal bars on a dark, see-through
 // backdrop inside a thin cyan frame.
@@ -381,6 +381,7 @@ void ChangeDisplayRow(int row, int delta) {
         s.render_resolution = s.render_resolution == ResogunSettings::Render4k ? ResogunSettings::Render1080p
                                                                                    : ResogunSettings::Render4k;
         break;
+    case RowSharpen: s.sharpening = !s.sharpening; break;
     case RowHdr: s.hdr = !s.hdr; break;
     default: return;
     }
@@ -470,6 +471,10 @@ DisplayRowText DisplayRowAt(int row) {
                 "4K as on PS4 Pro, filtered down to the window: sharper. 1080p as on PS4: lighter on the GPU. "
                 "Applies after a restart."};
     }
+    case RowSharpen:
+        return {"Sharpening", s.sharpening ? "On" : "Off",
+                "AMD FSR 1 RCAS sharpening of the picture at the window's size: crisper edges and detail, "
+                "without halos. Costs well under a millisecond a frame. Applies at once; F9 switches it over the game."};
     case RowHdr: {
         std::string text = s.hdr ? "On" : "Off";
         if (s.hdr != s.startup_hdr) {
@@ -1110,6 +1115,20 @@ bool HandleEvent(const SDL_Event& event) {
     if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F10 && !event.key.repeat && !text_entry_active) {
         display_row = 0;
         display_open = true;
+        return true;
+    }
+    // F9 turns sharpening on or off over the game itself, to compare (saved at once). Left to the
+    // pad recorder when RESOGUN_PAD_RECORD is set (src/runtime_pad.c), which starts on F9.
+    static const bool pad_record = [] {
+        const char* record = std::getenv("RESOGUN_PAD_RECORD");
+        return record && record[0];
+    }();
+    if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_F9 && !event.key.repeat && !text_entry_active &&
+        !pad_record) {
+        auto& s = ResogunSettings::Get();
+        s.sharpening = !s.sharpening;
+        ShowNotice(s.sharpening ? "Sharpening: On" : "Sharpening: Off", 1500);
+        ResogunSettings::SaveDisplay();
         return true;
     }
     // F4 asks to close the game anywhere; Alt+F4 still closes the window at once.

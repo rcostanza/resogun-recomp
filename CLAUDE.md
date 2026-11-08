@@ -28,7 +28,7 @@ to it (or pass `--game DIR` to `run.py`). Tests that need it skip without it.
 - The loader builds with `-Wall -Wextra -Werror`. Match the surrounding terse C style and comment
   each function with the PS4 contract it follows.
 - Guest-visible pointers must stay below 1 TiB (`runtime_low_alloc`).
-- Keep only what this game needs: no upscalers, extra menus or hacks for other games. The renderer
+- Keep only what this game needs: no extra menus or hacks for other games. The renderer
   is shadPS4's with added performance work (draw preparation, memos, async pipelines); behaviour
   changes there need a boot check (`python run.py --timeout 20`).
 - Releases are built by `tools/package.py` and must work from the unpacked zip alone: no repo, no

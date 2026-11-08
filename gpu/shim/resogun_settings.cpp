@@ -67,6 +67,8 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.skip_intro = Truthy(value);
     } else if (key == "title_back_exits") {
         v.title_back_exits = Truthy(value);
+    } else if (key == "sharpening") {
+        v.sharpening = Truthy(value);
     } else if (key == "hdr") {
         v.startup_hdr = v.hdr = Truthy(value);
     } else if (key == "frame_rate") {
@@ -101,6 +103,7 @@ std::vector<std::pair<std::string, std::string>> DisplayKeys() {
         {"tearing", v.tearing ? "1" : "0"},
         {"frame_rate", std::to_string(v.frame_rate.load())},
         {"render_resolution", std::string(RenderResolutionKeys[std::clamp(v.render_resolution.load(), 0, RenderResolutionCount - 1)])},
+        {"sharpening", v.sharpening ? "1" : "0"},
         {"hdr", v.hdr ? "1" : "0"},
     };
 }
@@ -216,6 +219,7 @@ void Load() {
         {"RESOGUN_TITLE_BACK_EXITS", "title_back_exits"},
         {"RESOGUN_RENDER_RESOLUTION", "render_resolution"},
         {"RESOGUN_HDR", "hdr"},
+        {"RESOGUN_SHARPENING", "sharpening"},
     };
     for (const auto& [env, key] : env_keys) {
         if (const char* value = std::getenv(env); value && value[0]) {

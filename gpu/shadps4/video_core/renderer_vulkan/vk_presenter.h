@@ -8,6 +8,7 @@
 
 #include "core/libraries/videoout/buffer.h"
 #include "video_core/renderer_vulkan/host_passes/pp_pass.h"
+#include "video_core/renderer_vulkan/host_passes/rcas_pass.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -114,6 +115,7 @@ private:
     Instance instance;
     HostPasses::PostProcessingPass::Settings pp_settings{};
     HostPasses::PostProcessingPass pp_pass;
+    HostPasses::RcasPass rcas_pass; ///< resogun: sharpening (ResogunSettings::sharpening)
     AmdGpu::Liverpool* liverpool;
     Scheduler draw_scheduler;
     u64 previous_frame_tick = 0; ///< resogun: one frame in flight (PrepareFrame)
