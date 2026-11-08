@@ -27,9 +27,9 @@ static _Thread_local unsigned char *tls_blocks[TLS_MODULES];
 static void *process_param;
 void runtime_set_procparam(void *param) { process_param=param; }
 static ABI void *guest_procparam(void) { return process_param; }
-static void **application_heap_api;
+/* _sceKernelRtldSetApplicationHeapAPI: the game hands rtld its malloc table; the runtime allocates on its own. */
 static ABI void guest_set_heap_api(void **api) {
-    application_heap_api=api;
+    (void)api;
     puts("Runtime: application heap API registered");
 }
 void runtime_set_module_tls(uint64_t module, const void *data, uint64_t filesz, uint64_t memsz) {

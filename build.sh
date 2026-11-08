@@ -67,6 +67,10 @@ if [[ ${1:-} == --test ]]; then
         grep -v '^[[]' out/gpu-build.log | tail -40 >&2
         echo 'Test build failed (full log: out/gpu-build.log)' >&2; exit 1
     fi
+    # The video core's user folder (caches, logs) in out/, not ~/.local/share/shadPS4; it must
+    # exist, or Linux falls back to the home folder.
+    mkdir -p out/gpu-test-user
+    export RESOGUN_GPU_USER_DIR=out/gpu-test-user
     for test in "${gpu_tests[@]}"; do
         args=()
         [[ $test == isa-stub-test ]] && args=(tests/data/isa_fixture.bin)
