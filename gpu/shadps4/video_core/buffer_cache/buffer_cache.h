@@ -5,7 +5,11 @@
 
 #include "resogun_copy.h"
 
+#include <atomic>
 #include <deque>
+#include <map>
+#include <mutex>
+#include <vector>
 #include <boost/container/small_vector.hpp>
 
 #include "common/interval_set.h"
@@ -83,6 +87,9 @@ public:
     /// Invalidates any buffer in the logical page range.
     void InvalidateMemory(VAddr device_addr, u64 size, bool assume_locks = false);
 
+    /// resogun: the guest unmapped [device_addr, +size): drops what TryMergeWrite saved there.
+    void ForgetMergedWrites(VAddr device_addr, u64 size);
+
     /// resogun: a guest write fault at `device_addr` was handled; unprotect its neighbourhood.
     void ExtendWriteFault(VAddr device_addr);
 
@@ -138,6 +145,16 @@ private:
     bool SynchronizeMemory(const Buffer* arena, VAddr device_addr, u32 size, bool is_written,
                            bool is_texel_buffer);
 
+    /// resogun: a CPU write fault at [device_addr, +size) on a page holding GPU-written bytes
+    /// it does not touch: saves those bytes as the guest has them and lets the write go ahead
+    /// without downloading (true), so the GPU's copy stays the newer one. false: download.
+    bool TryMergeWrite(VAddr device_addr, u64 size);
+
+    /// resogun: passes the CPU-modified range [addr, +size) to emit(addr, size) for upload,
+    /// minus the GPU-written bytes TryMergeWrite saved that the guest has not changed since.
+    template <typename Emit>
+    void EmitUploadRange(VAddr addr, u64 size, Emit&& emit);
+
     /// resogun: batched small copies on the copy threads (ResogunCopy::QueueCopy).
     static void RunGuestCopy(const ResogunCopy::Item& item);
     void SmallGuestCopy(const ResogunCopy::Item& item);
@@ -166,6 +183,16 @@ private:
     StreamBuffer stream_buffer;
     Buffer gds_buffer;
     RangeSet gpu_modified_ranges;
+
+    /// resogun: pages TryMergeWrite left without a download, by page address: each GPU-written
+    /// range on the page with the bytes the guest held there at the fault.
+    struct MergedRange {
+        VAddr address;
+        std::vector<u8> bytes;
+    };
+    std::mutex merged_mutex;
+    std::map<VAddr, std::vector<MergedRange>> merged_pages;
+    std::atomic<u64> merged_count{0};
 
     std::unique_ptr<FaultManager> fault_manager;
     std::unique_ptr<Buffer> bda_pagetable_buffer;

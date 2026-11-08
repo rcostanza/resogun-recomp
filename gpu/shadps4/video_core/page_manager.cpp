@@ -74,11 +74,10 @@ struct PageManager::Impl {
             ResogunStats::gpu_signal_faults.fetch_add(1, std::memory_order_relaxed);
         }
         const bool is_write = Common::IsWriteError(context);
-#ifdef _WIN32
-        ResogunStats::fault_rip.store(static_cast<EXCEPTION_POINTERS*>(context)->ContextRecord->Rip |
+        // resogun: the faulting guest instruction, for the RESOGUN_PERF_DIAG readback report.
+        ResogunStats::fault_rip.store(reinterpret_cast<u64>(Common::GetRip(context)) |
                                           (u64(is_write) << 63),
                                       std::memory_order_relaxed);
-#endif
         if (is_write) {
             ResogunStats::Timer timer{ResogunStats::t_write_faults};
             return rasterizer->OnWriteFault(addr, is_gpu_thread);

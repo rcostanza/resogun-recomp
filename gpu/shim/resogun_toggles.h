@@ -55,6 +55,9 @@ enum : std::uint64_t {
     TextureSetMemo = 1ull << 45,
     PipelinedIndirectDraws = 1ull << 46,
     OrderedGuestWrites = 1ull << 49,
+    /// A CPU write fault on a page whose GPU-written bytes it does not touch keeps those bytes
+    /// out of the page's next upload instead of downloading them first (buffer_cache.cpp).
+    WriteMerge = 1ull << 50,
     UpdateImageFastPath = 1u << 30,
     // On by default (bit set: off): history of a thin feature this jitter phase missed is kept
     // when nothing moves. Static-camera flicker of railings/window bars p99.9 -45% (2026-10-03).
@@ -97,6 +100,12 @@ inline std::atomic<std::uint64_t> t_resident{0}, t_protect{0}, t_image_create{0}
 /// Guest instruction of the last CPU access fault on tracked memory, bit 63 set for a write
 /// (RESOGUN_PERF_DIAG readback report; taken by the download it causes).
 inline std::atomic<std::uint64_t> fault_rip{0};
+/// What the GPU thread binds for writing next (RESOGUN_PERF_DIAG readback report): the shader's
+/// hash for storage buffers, or one of the GpuWriter tags.
+inline thread_local std::uint64_t gpu_write_tag = 0;
+/// CPU write faults merged without a GPU download (BufferCache::TryMergeWrite).
+inline std::atomic<std::uint64_t> merged_writes{0};
+enum GpuWriter : std::uint64_t { WriterFill = 1, WriterDma = 2, WriterHle = 3 };
 /// Diagnostics are collected only with RESOGUN_FRAME_STATS=1.
 inline const bool enabled = [] {
     const char* env = std::getenv("RESOGUN_FRAME_STATS");

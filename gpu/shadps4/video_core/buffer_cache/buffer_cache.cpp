@@ -4,6 +4,7 @@
 #include <chrono>
 #include <array>
 #include <map>
+#include <tuple>
 #include <mutex>
 #include <vector>
 #include <cstdio>
@@ -148,8 +149,113 @@ void BufferCache::ExtendWriteFault(VAddr device_addr) {
     memory_tracker->ExtendWriteFault(Common::AlignDown(device_addr, window), window);
 }
 
+static bool PerfDiag();
+// resogun (RESOGUN_PERF_DIAG): CPU write faults that downloaded GPU data, and how many of them
+// hit a byte the GPU wrote (the rest only share its 4 KiB page).
+static std::atomic<u64> write_downloads{0}, write_downloads_inside{0};
+
+// resogun: Resogun's CPU fills records into pages it shares with small GPU-written buffers
+// (a compute copy's 5 KiB destination; RESOGUN_PERF_DIAG readback report). Page tracking made
+// each such write fault download the GPU's bytes first, waiting for the whole GPU queue: ~160
+// a second, 4 ms of GPU idle a frame on a Radeon 890M. The CPU writes other bytes of the page,
+// so they are merged instead: the page's next upload leaves out the GPU-written bytes the guest
+// has not changed since the fault. Only in Relaxed readback mode: pages there are never
+// read-protected, so the fault can read them, and guest reads of GPU-written bytes see the
+// guest's copy either way.
+bool BufferCache::TryMergeWrite(VAddr device_addr, u64 size) {
+    if (ResogunToggle::Disabled(ResogunToggle::WriteMerge) ||
+        EmulatorSettings.GetReadbacksMode() != GpuReadbacksMode::Relaxed) {
+        return false;
+    }
+    const VAddr page = Common::AlignDown(device_addr, TRACKER_BYTES_PER_PAGE);
+    if (device_addr + size > page + TRACKER_BYTES_PER_PAGE ||
+        gpu_modified_ranges.Intersects(device_addr, size)) {
+        return false;
+    }
+    std::vector<MergedRange> ranges;
+    gpu_modified_ranges.ForEachInRange(page, TRACKER_BYTES_PER_PAGE, [&](VAddr start, VAddr end) {
+        const auto* bytes = std::bit_cast<const u8*>(start);
+        ranges.push_back({start, std::vector<u8>(bytes, bytes + (end - start))});
+    });
+    if (ranges.empty()) {
+        return false;
+    }
+    {
+        std::scoped_lock lock{merged_mutex};
+        // An entry still here was saved before any guest write to the page since; keep it.
+        if (merged_pages.try_emplace(page, std::move(ranges)).second) {
+            merged_count.fetch_add(1, std::memory_order_relaxed);
+        }
+    }
+    ResogunStats::merged_writes.fetch_add(1, std::memory_order_relaxed);
+    memory_tracker->MarkRegionAsCpuModified(device_addr, size);
+    return true;
+}
+
+void BufferCache::ForgetMergedWrites(VAddr device_addr, u64 size) {
+    if (merged_count.load(std::memory_order_relaxed) == 0) {
+        return;
+    }
+    std::scoped_lock lock{merged_mutex};
+    auto it = merged_pages.lower_bound(Common::AlignDown(device_addr, TRACKER_BYTES_PER_PAGE));
+    while (it != merged_pages.end() && it->first < device_addr + size) {
+        it = merged_pages.erase(it);
+        merged_count.fetch_sub(1, std::memory_order_relaxed);
+    }
+}
+
+template <typename Emit>
+void BufferCache::EmitUploadRange(VAddr addr, u64 size, Emit&& emit) {
+    if (merged_count.load(std::memory_order_relaxed) == 0) {
+        emit(addr, size);
+        return;
+    }
+    std::scoped_lock lock{merged_mutex};
+    const VAddr end = addr + size;
+    VAddr cursor = addr;
+    auto it = merged_pages.lower_bound(Common::AlignDown(addr, TRACKER_BYTES_PER_PAGE));
+    while (it != merged_pages.end() && it->first < end) {
+        for (const MergedRange& range : it->second) {
+            // Runs of bytes the guest still holds as saved are the GPU's: skipped.
+            const auto* now = std::bit_cast<const u8*>(range.address);
+            std::size_t i = 0;
+            while (i < range.bytes.size()) {
+                if (now[i] != range.bytes[i]) {
+                    ++i;
+                    continue;
+                }
+                const std::size_t skip = i;
+                while (i < range.bytes.size() && now[i] == range.bytes[i]) {
+                    ++i;
+                }
+                const VAddr skip_start = std::max(range.address + skip, cursor);
+                const VAddr skip_end = std::min<VAddr>(range.address + i, end);
+                if (skip_start >= skip_end) {
+                    continue;
+                }
+                if (skip_start > cursor) {
+                    emit(cursor, skip_start - cursor);
+                }
+                cursor = skip_end;
+            }
+        }
+        it = merged_pages.erase(it);
+        merged_count.fetch_sub(1, std::memory_order_relaxed);
+    }
+    if (cursor < end) {
+        emit(cursor, end - cursor);
+    }
+}
+
 void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool assume_locks) {
     const auto flush_request = [this, device_addr, size, is_write] {
+        if (is_write && TryMergeWrite(device_addr, size)) {
+            return;
+        }
+        if (is_write && PerfDiag()) {
+            ++write_downloads;
+            write_downloads_inside += gpu_modified_ranges.Intersects(device_addr, size) ? 1 : 0;
+        }
         const u32 first_block = device_addr >> block_shift;
         const u32 last_block = (device_addr + size - 1) >> block_shift;
         const auto* arena = GetArena(first_block, last_block);
@@ -174,21 +280,50 @@ void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool as
     }
 }
 
-// resogun (RESOGUN_PERF_DIAG): every 5 s, the GPU-to-CPU downloads by guest address (64 KiB) and
-// the guest instruction whose access fault asked for them (eboot offset; 0: no fault),
-// with the time scheduler.Finish() waited for the GPU.
-static void NoteReadback(VAddr address, u64 bytes, std::chrono::steady_clock::duration wait) {
+static bool PerfDiag() {
     static const bool enabled = [] {
         const char* value = std::getenv("RESOGUN_PERF_DIAG");
         return value && value[0] == '1';
     }();
-    if (!enabled) {
+    return enabled;
+}
+
+// resogun (RESOGUN_PERF_DIAG): the last GPU writer of each 4 KiB page (ResogunStats::
+// gpu_write_tag when it was bound for writing) and the size of that binding.
+struct GpuWriterNote {
+    u64 tag, size;
+};
+static std::mutex gpu_writers_mutex;
+static std::unordered_map<u64, GpuWriterNote> gpu_writers;
+static void NoteGpuWrite(VAddr address, u64 size) {
+    if (!PerfDiag()) {
+        return;
+    }
+    std::scoped_lock lock{gpu_writers_mutex};
+    const u64 first = address >> 12, last = std::min((address + size - 1) >> 12, first + 1023);
+    for (u64 page = first; page <= last; ++page) {
+        gpu_writers[page] = {ResogunStats::gpu_write_tag, size};
+    }
+}
+static GpuWriterNote GpuWriterOf(VAddr address) {
+    std::scoped_lock lock{gpu_writers_mutex};
+    const auto it = gpu_writers.find(address >> 12);
+    return it == gpu_writers.end() ? GpuWriterNote{} : it->second;
+}
+
+// resogun (RESOGUN_PERF_DIAG): every 5 s, the GPU-to-CPU downloads by guest address (64 KiB),
+// the guest instruction whose access fault asked for them (eboot offset; 0: no fault) and
+// the GPU writer of the first downloaded page (a shader hash, or fill/dma/hle; its binding
+// size), with the time scheduler.Finish() waited for the GPU.
+static void NoteReadback(VAddr address, u64 bytes, std::chrono::steady_clock::duration wait) {
+    if (!PerfDiag()) {
         return;
     }
     struct Row {
-        u64 calls{}, bytes{}, wait_ns{};
+        u64 calls{}, bytes{}, wait_ns{}, writer_size{};
     };
-    static std::map<std::pair<u64, u64>, Row> rows;
+    const GpuWriterNote writer = GpuWriterOf(address);
+    static std::map<std::tuple<u64, u64, u64>, Row> rows;
     static auto window = std::chrono::steady_clock::now();
     static std::mutex mutex;
     constexpr u64 image_base = 0x800000000ull;
@@ -197,7 +332,8 @@ static void NoteReadback(VAddr address, u64 bytes, std::chrono::steady_clock::du
     rip &= ~write;
     rip = (rip >= image_base ? rip - image_base : rip) | write;
     std::scoped_lock lock{mutex};
-    auto& row = rows[{address >> 16 << 16, rip}];
+    auto& row = rows[{address >> 16 << 16, rip, writer.tag}];
+    row.writer_size = writer.size;
     ++row.calls;
     row.bytes += bytes;
     row.wait_ns += std::chrono::duration_cast<std::chrono::nanoseconds>(wait).count();
@@ -206,15 +342,29 @@ static void NoteReadback(VAddr address, u64 bytes, std::chrono::steady_clock::du
         return;
     }
     window = now;
-    std::vector<std::pair<std::pair<u64, u64>, Row>> sorted(rows.begin(), rows.end());
+    std::vector<std::pair<std::tuple<u64, u64, u64>, Row>> sorted(rows.begin(), rows.end());
     std::sort(sorted.begin(), sorted.end(),
               [](const auto& a, const auto& b) { return a.second.wait_ns > b.second.wait_ns; });
+    static constexpr const char* tags[] = {"unknown", "fill", "dma", "hle"};
+    std::printf("Readback: %llu CPU write faults downloaded GPU data, %llu of them on a byte the GPU "
+                "wrote\n",
+                (unsigned long long)write_downloads.exchange(0),
+                (unsigned long long)write_downloads_inside.exchange(0));
     for (std::size_t i = 0; i < sorted.size() && i < 8; ++i) {
         const auto& [key, r] = sorted[i];
-        std::printf("Readback: 0x%llx from guest %s 0x%llx; %llu downloads, %llu bytes, GPU wait %.1f ms\n",
-                    (unsigned long long)key.first, key.second >> 63 ? "write" : "read",
-                    (unsigned long long)(key.second & ~(1ull << 63)),
-                    (unsigned long long)r.calls, (unsigned long long)r.bytes, r.wait_ns / 1e6);
+        const auto [page, source, tag] = key;
+        char writer_name[40];
+        if (tag < std::size(tags)) {
+            std::snprintf(writer_name, sizeof(writer_name), "%s", tags[tag]);
+        } else {
+            std::snprintf(writer_name, sizeof(writer_name), "shader %016llx", (unsigned long long)tag);
+        }
+        std::printf("Readback: 0x%llx from guest %s 0x%llx; %llu downloads, %llu bytes, GPU wait "
+                    "%.1f ms; GPU writer %s (%llu-byte binding)\n",
+                    (unsigned long long)page, source >> 63 ? "write" : "read",
+                    (unsigned long long)(source & ~(1ull << 63)), (unsigned long long)r.calls,
+                    (unsigned long long)r.bytes, r.wait_ns / 1e6, writer_name,
+                    (unsigned long long)r.writer_size);
     }
     rows.clear();
 }
@@ -250,7 +400,7 @@ void BufferCache::DownloadMemory(const Buffer* arena, VAddr device_addr, u64 siz
     runtime.CopyBuffer(arena, download.buffer, copies);
     const auto finish_start = std::chrono::steady_clock::now();
     scheduler.Finish();
-    NoteReadback(device_addr, total_size_bytes,
+    NoteReadback(arena_base + copies[0].srcOffset, total_size_bytes,
                  std::chrono::steady_clock::now() - finish_start);
 
     download.buffer->Invalidate(download.offset, download.size);
@@ -395,6 +545,7 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
     }
     if (is_written) {
         gpu_modified_ranges.Add(device_addr, size);
+        NoteGpuWrite(device_addr, size);
     }
     return {arena, arena->Offset(device_addr)};
 }
@@ -576,8 +727,10 @@ bool BufferCache::SynchronizeMemory(const Buffer* arena, VAddr device_addr, u32 
     memory_tracker->ForEachUploadRange(
         device_addr, size, is_written,
         [&](u64 addr, u64 size) {
-            copies.emplace_back(total_size_bytes, addr, size);
-            total_size_bytes += size;
+            EmitUploadRange(addr, size, [&](u64 start, u64 bytes) {
+                copies.emplace_back(total_size_bytes, start, bytes);
+                total_size_bytes += bytes;
+            });
         },
         [&] { src_buffer = UploadCopies(arena, copies, total_size_bytes); });
 

@@ -531,14 +531,15 @@ void VideoOutDriver::Flip(const Request& req) {
                         "%u shader/pipeline compiles, %.1f ms; async: capture %.1f ms, workers "
                         "%.1f ms, sync wait %.1f ms, snapshots %.1f ms, GPU capture wait %.1f ms, "
                         "%u pending draws, %u build waits %.1f ms; %llu recorder syncs; "
-                        "%.0f write faults/s, %lld hot pages; GPU thread %.2f us/draw, "
+                        "%.0f write faults/s (%.0f/s merged), %lld hot pages; GPU thread %.2f us/draw, "
                         "%.0f draws/frame, idle %.1f%%; blocked: recorder %.1f%%, host copies "
                         "%.1f%% (%.0f/frame), copy threads %.1f%%, GPU ticks %.1f%%\n",
                         frames / window, worst_ms, EmulatorSettings.GetVblankFrequency(), compiles,
                         compile_ns / 1e6, capture_ms, async_ms, wait_ms, snapshot_ms, guest_wait_ms,
                         pending_draws, build_waits, build_wait_ms,
                         static_cast<unsigned long long>(direct),
-                        faults / window, static_cast<long long>(ResogunStats::hot_pages.load()),
+                        faults / window, ResogunStats::merged_writes.exchange(0) / window,
+                        static_cast<long long>(ResogunStats::hot_pages.load()),
                         us_per_draw, draws_per_frame,
                         ResogunStats::gpu_idle_ns.exchange(0) / (window * 1e7),
                         ResogunStats::sync_recording_ns.exchange(0) / (window * 1e7),

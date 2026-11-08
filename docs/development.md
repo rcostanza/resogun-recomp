@@ -84,7 +84,7 @@ Resogun's game logic advances once per frame, by a step its frame clock fixes: t
 constant 59.94 and allows no frame skip, so the game's speed is the rate at which it flips. Raising
 the PS4 vblank alone (shadPS4's approach) runs the game faster, not smoother.
 
-`frame_rate` (60, 120 or 180) sets both. `ResogunSettings::EffectiveFrameRate()` lowers it to what the
+`frame_rate` (60, 90, 120 or 180) sets both. `ResogunSettings::EffectiveFrameRate()` lowers it to what the
 display refreshes at, unless VSync is off with tearing allowed; the video out's vblank follows it
 (`GetVblankFrequency`, live), and at each flip `runtime_game_frame_rate()` (`src/runtime_game.c`)
 calls the engine's own `set_fps(rate x 0.999)` through the frame clock's vtable (the global at image
@@ -94,6 +94,27 @@ from the panel applies on the next flip. Above about 200 FPS a guard in the spaw
 
 After a rate change the present thread paces by its timer instead of following the display: with
 G-Sync, following the display's own timing settled at 97 FPS.
+
+### CPU writes next to GPU-written bytes
+
+In combat the game's CPU writes records (eboot 0x1c90a7, a copy loop at 0x6c4bf8, CRT copies) into
+pages it shares with small GPU-written buffers: the 5 KiB destination of a compute copy (shader
+0x069f1335) and a 64 KiB storage buffer (0xf003dbab). Page tracking is per 4 KiB page, so each
+such write fault used to download the GPU's bytes first, a `scheduler.Finish()` that waits for the
+whole queue: about 160 a second, 4 ms of GPU idle per frame on a Radeon 890M (73 to 79 FPS at
+1080p). The writes almost never touch a byte the GPU wrote, so `BufferCache::TryMergeWrite` lets
+them go ahead without downloading and keeps a copy of the page's GPU-written bytes; the page's next
+upload (`EmitUploadRange`) leaves out those that the guest has not changed since. Relaxed readback
+mode only (the default), where pages are never read-protected. Toggle `WriteMerge` (bit 50) turns
+it off; `RESOGUN_FRAME_STATS=1` prints the merged writes per second, `RESOGUN_PERF_DIAG=1` the
+downloads that remain with the guest instruction and the GPU writer behind each.
+
+### Render resolution
+
+The engine's output size table (1920x1080 on PS4, 3840x2160 on PS4 Pro; eboot 0xa5d120) sets only
+the display buffers and the final pass: patched to 1280x720, the scene's passes still render at
+1920x1080 for the same GPU time, so there is no 720p mode. The scene size follows PS4 Pro mode
+some other way (1920x2160 checkerboard in 4K), probably in the render scripts in the game data.
 
 ## Starting, the title screen and leaving
 
