@@ -62,7 +62,7 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         const bool listed = ResogunGraphics::IndexOf(ResogunGraphics::FrameRates, i, -1) >= 0;
         v.frame_rate = listed ? i : 60;
         if (!value.empty() && !listed) {
-            std::printf("Settings: frame_rate=%s is not 60, 120 or 180; using 60\n", value.c_str());
+            std::printf("Settings: frame_rate=%s is not 60, 90, 120 or 180; using 60\n", value.c_str());
         }
     } else if (key == "audio_channels") {
         v.audio_channels = ParseAudioChannels(value);

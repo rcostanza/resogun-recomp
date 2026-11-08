@@ -12,7 +12,8 @@ This requires you to provide a decrypted dump of your own copy of the game. Only
 
 ## Features
 
-- **60, 120 or 180 FPS.** Higher framerates maybe possible in the future.
+- **60, 90, 120 or 180 FPS.** Higher framerates maybe possible in the future.
+  - Note: if the game fails to reach the set FPS cap, it will run slower. So choose a cap that your device can reach.
 - **4K support** (not native, the game's own checkerboard mode) or 1080p.
 - **DLC support** from your own DLC dumps.
 - **Built in skip intro:** (optionally) boots straight to the main menu, the start-up logos and the "Press X" screen are skipped.
@@ -74,7 +75,7 @@ Resogun's add-ons (the extra ships and skins) carry no data of their own: the ga
 
 - window mode, output resolution and monitor;
 - VSync, and tearing with VSync off (the least input delay);
-- frame rate: 60, 120 or 180, held to what your display refreshes at (180 on a 120 Hz display runs at 120) unless VSync is off with tearing allowed;
+- frame rate: 60, 90, 120 or 180, held to what your display refreshes at (180 on a 120 Hz display runs at 120) unless VSync is off with tearing allowed;
 - render resolution (4K or 1080p, at the next start).
 
 `title_back_exits=0` stops Back on the title screen from asking to close the game.

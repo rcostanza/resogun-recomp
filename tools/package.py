@@ -82,7 +82,7 @@ Run resogun-setup.exe again to change the game or save folder. After unpacking a
 over this folder, run it once more: it keeps your folders and settings.
 
 In the game: F10, or Select (Share/View) held for two seconds, opens the display settings (window,
-resolution, VSync, 60/120/180 FPS); F4, or Back on the title screen, asks to close the game.
+resolution, VSync, 60/90/120/180 FPS); F4, or Back on the title screen, asks to close the game.
 
 settings.ini (made by the setup) holds the window, audio and control options; one in your save
 folder is read instead, and the display settings save there. If the game stops, the reason is in
@@ -109,7 +109,7 @@ Run resogun-setup again to change the game or save folder. After unpacking a new
 over this folder, run it once more: it keeps your folders and settings.
 
 In the game: F10, or Select (Share/View) held for two seconds, opens the display settings (window,
-resolution, VSync, 60/120/180 FPS); F4, or Back on the title screen, asks to close the game.
+resolution, VSync, 60/90/120/180 FPS); F4, or Back on the title screen, asks to close the game.
 
 settings.ini (made by the setup) holds the window, audio and control options; one in your save
 folder is read instead, and the display settings save there. If the game stops, the reason is in

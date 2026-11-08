@@ -12,7 +12,7 @@ double ResogunWindowRefreshRate(); // resogun_gpu.cpp: exact rate of the window'
 bool ResogunWaitForVblank(); // resogun_gpu.cpp: waits for the window's display to start a refresh; false when it cannot (not Windows)
 extern "C" int resogun_render_4k(void); // resogun_settings.cpp: render_resolution=4k
 inline bool ResogunRender4k() { return resogun_render_4k() != 0; }
-extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (60, 120, 180)
+extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (60, 90, 120, 180)
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 
