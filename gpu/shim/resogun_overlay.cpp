@@ -113,7 +113,7 @@ bool display_dirty = false;
 // guarded by imgui_mutex.
 std::atomic<bool> exit_open{false};
 int exit_focus = 0;
-enum DisplayRow : int { RowMode, RowResolution, RowMonitor, RowVsync, RowFps, RowRender, RowCount };
+enum DisplayRow : int { RowMode, RowResolution, RowMonitor, RowVsync, RowFps, RowRender, RowHdr, RowCount };
 
 // The colours of the game's own menus (Main Menu, Options): teal bars on a dark, see-through
 // backdrop inside a thin cyan frame.
@@ -327,6 +327,7 @@ void ChangeDisplayRow(int row, int delta) {
         s.render_resolution = s.render_resolution == ResogunSettings::Render4k ? ResogunSettings::Render1080p
                                                                                    : ResogunSettings::Render4k;
         break;
+    case RowHdr: s.hdr = !s.hdr; break;
     default: return;
     }
     display_dirty = true;
@@ -395,6 +396,17 @@ DisplayRowText DisplayRowAt(int row) {
         return {"Render resolution", text,
                 "4K as on PS4 Pro, filtered down to the window: sharper. 1080p as on PS4: lighter on the GPU. "
                 "Applies after a restart."};
+    }
+    case RowHdr: {
+        std::string text = s.hdr ? "On" : "Off";
+        if (s.hdr != s.startup_hdr) {
+            text += "  (after restart)";
+        } else if (s.hdr && s.hdr_display == 0) {
+            text += "  (this display has no HDR)";
+        }
+        return {"HDR", text,
+                "The game's own HDR output, for an HDR display (in Windows, turn on Use HDR in Display "
+                "settings first). Applies after a restart."};
     }
     default: return {"", "", ""};
     }

@@ -58,6 +58,8 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.skip_intro = Truthy(value);
     } else if (key == "title_back_exits") {
         v.title_back_exits = Truthy(value);
+    } else if (key == "hdr") {
+        v.startup_hdr = v.hdr = Truthy(value);
     } else if (key == "frame_rate") {
         const bool listed = ResogunGraphics::IndexOf(ResogunGraphics::FrameRates, i, -1) >= 0;
         v.frame_rate = listed ? i : 60;
@@ -89,6 +91,7 @@ std::vector<std::pair<std::string, std::string>> DisplayKeys() {
         {"tearing", v.tearing ? "1" : "0"},
         {"frame_rate", std::to_string(v.frame_rate.load())},
         {"render_resolution", std::string(RenderResolutionKeys[std::clamp(v.render_resolution.load(), 0, RenderResolutionCount - 1)])},
+        {"hdr", v.hdr ? "1" : "0"},
     };
 }
 
@@ -201,6 +204,7 @@ void Load() {
         {"RESOGUN_SKIP_INTRO", "skip_intro"},     {"RESOGUN_FRAME_RATE", "frame_rate"},
         {"RESOGUN_TITLE_BACK_EXITS", "title_back_exits"},
         {"RESOGUN_RENDER_RESOLUTION", "render_resolution"},
+        {"RESOGUN_HDR", "hdr"},
     };
     for (const auto& [env, key] : env_keys) {
         if (const char* value = std::getenv(env); value && value[0]) {
@@ -264,6 +268,10 @@ extern "C" int resogun_frame_rate(void) {
 
 extern "C" void resogun_set_frame_rate(int rate) {
     ResogunSettings::Get().frame_rate = rate;
+}
+
+extern "C" int resogun_hdr(void) {
+    return ResogunSettings::Get().startup_hdr ? 1 : 0;
 }
 
 extern "C" int resogun_render_4k(void) {

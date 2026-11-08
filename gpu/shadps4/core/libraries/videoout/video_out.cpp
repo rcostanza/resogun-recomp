@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
 #include "common/assert.h"
 #include "common/elf_info.h"
 #include "common/logging/log.h"
@@ -449,6 +450,8 @@ s32 PS4_SYSV_ABI sceVideoOutConfigureOutputMode_(s32 handle, u32 reserved, const
     default:
         return ORBIS_VIDEO_OUT_ERROR_INVALID_VALUE;
     }
+    // resogun: the game picks HDR here when the capability query offered BT.2020 PQ.
+    std::printf("VideoOut: game set output mode %s\n", port->is_hdr ? "HDR (BT.2020 PQ)" : "SDR");
 
     return ORBIS_OK;
 }

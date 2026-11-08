@@ -12,6 +12,7 @@ double ResogunWindowRefreshRate(); // resogun_gpu.cpp: exact rate of the window'
 bool ResogunWaitForVblank(); // resogun_gpu.cpp: waits for the window's display to start a refresh; false when it cannot (not Windows)
 extern "C" int resogun_render_4k(void); // resogun_settings.cpp: render_resolution=4k
 inline bool ResogunRender4k() { return resogun_render_4k() != 0; }
+extern "C" int resogun_hdr(void); // resogun_settings.cpp: settings.ini hdr
 extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (60, 90, 120, 180)
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
@@ -57,7 +58,8 @@ public:
     bool IsCopyGpuBuffers() { static const auto value = Flag("RESOGUN_COPY_GPU_BUFFERS", false); return value; }
     bool IsDirectMemoryAccessEnabled() { static const auto value = Flag("RESOGUN_DIRECT_MEMORY_ACCESS", false); return value; }
     bool IsDumpShaders() { static const auto value = Flag("RESOGUN_DUMP_SHADERS", false); return value; }
-    bool IsHdrAllowed() { static const auto value = Flag("RESOGUN_HDR", false); return value; }
+    // resogun: settings.ini hdr (RESOGUN_HDR), read once at start (resogun_hdr).
+    bool IsHdrAllowed() { static const bool value = resogun_hdr() != 0; return value; }
     bool IsNullGPU() { static const auto value = Flag("RESOGUN_NULL_GPU", false); return value; }
     bool IsPatchShaders() { return false; }
     bool IsPipelineCacheArchived() { return false; }

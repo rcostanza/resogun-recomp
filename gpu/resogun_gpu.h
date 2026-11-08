@@ -50,6 +50,9 @@ void resogun_gpu_request_quit(void);
 /* 1 when settings.ini render_resolution (RESOGUN_RENDER_RESOLUTION) is 4k: the game runs in PS4
  * Pro mode with a 3840x2160 video out. Valid once resogun_gpu_init returned. */
 int resogun_render_4k(void);
+/* 1 when settings.ini hdr (RESOGUN_HDR) is on: the video out offers BT.2020 PQ when the display
+ * has an HDR10 surface, and the game then outputs HDR. Valid once resogun_gpu_init returned. */
+int resogun_hdr(void);
 /* 1 when settings.ini skip_intro (RESOGUN_SKIP_INTRO, default on) is on: the game starts without
  * its start-up logos and notices (-nosplash). Valid once resogun_gpu_init returned. */
 int resogun_skip_intro(void);

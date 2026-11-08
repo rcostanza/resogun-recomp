@@ -202,6 +202,16 @@ void Swapchain::FindPresentFormat() {
         std::find_if(formats.begin(), formats.end(), [](const vk::SurfaceFormatKHR& format) {
             return format == SURFACE_FORMAT_HDR;
         }) != formats.end();
+    // resogun: which of the two the display and the setting allow, once; the Display
+    // Settings panel shows the first.
+    ResogunSettings::Get().hdr_display = supports_hdr ? 1 : 0;
+    static bool hdr_logged = false;
+    if (!hdr_logged) {
+        hdr_logged = true;
+        std::printf("Swapchain: HDR10 (BT.2020 PQ) surface %s, HDR %s\n",
+                    supports_hdr ? "available" : "not available",
+                    EmulatorSettings.IsHdrAllowed() ? "allowed" : "not allowed");
+    }
     // Also make sure that user allowed us to use HDR
     supports_hdr &= EmulatorSettings.IsHdrAllowed();
 
