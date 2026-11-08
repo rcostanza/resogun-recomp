@@ -35,9 +35,8 @@ to it (or pass `--game DIR` to `run.py`). Tests that need it skip without it.
   MSYS2, no Python of the player's own. Never package game files or anything built from a dump.
 - Python edits on Windows: write files with LF line endings (`write_bytes`, or
   `open(path, 'w', newline='')`): text mode would turn the tree's LF into CRLF.
-- Game files are in `D:/Dev/resogun-pc/game_dump`. DLC dumps are in `D:/Dev/resogun-pc/DLC`: 22
-  entitlement-only add-ons (ships and skins; each folder holds only sce_sys, no data), so DLC means
-  sceAppContent reporting them as installed, not serving files.
+- The DLC dumps are 22 entitlement-only add-ons (ships and skins; each folder holds only sce_sys,
+  no data), so DLC means sceAppContent reporting them as installed, not serving files.
 - The engine takes its own command-line switches (strings in the eboot: `-nosplash`, `-no_video`,
   `-no_level_intro`, ...); pass them with `python run.py --guest-arg <switch>`.
 - `skip_intro=1` (settings.ini, default): `-nosplash`, then one Cross on the first title screen
