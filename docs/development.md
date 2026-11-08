@@ -1,0 +1,166 @@
+# Development
+
+How the runner works and how to work on it. Building, tests and packaging are in
+[building.md](building.md).
+
+## How it works
+
+The PS4 and the PC are both x86-64, so nothing is recompiled. Resogun's `eboot.bin` (Housemarque's
+engine, statically linked, with Wwise for audio) is mapped into memory and run directly. What
+differs is everything that code calls:
+
+| The game calls | Replaced by |
+|---|---|
+| PS4 system libraries (kernel, POSIX, threads, files, pad, audio, save data, ...) | C reimplementations in `src/runtime_*.c` |
+| GNM GPU command buffers | shadPS4's video core in `gpu/`, GCN shaders translated to Vulkan |
+
+The game image is built from the dump by `run.py` (and by the setup in a release):
+
+1. `scripts/prepare.py` strips the SELF wrapper from `eboot.bin` (the dump must be decrypted) and
+   writes `out/game/boot.bin`, its report `analysis.json` and the AppContent profile `content.bin`.
+2. `scripts/link.py` links the eboot with the two modules Resogun ships in `sce_module`, `libc.prx`
+   and `libSceFios2.prx`, into `boot-linked.bin`. Symbols match by NID and library identity, never by
+   name; `mov rax, fs:[0]` thread-pointer loads are rewritten to GS (glibc owns FS on Linux).
+3. On a CPU without an instruction set the game uses (MOVBE, LZCNT, BMI1), `scripts/isa_rewrite.py`
+   lists each such instruction for `src/isa_rewrite.c`, which patches in a stub that emulates it.
+4. `resogun` maps the image, resolves every import against the C runtime (by symbol name, from
+   `src/import_names.inc`) or the GPU core (by NID), runs each module's initializer and enters the
+   game. An import with no implementation becomes a trap that prints
+   `STOP: first unsupported PS4 import: <name>` and exits.
+
+Every import Resogun's three modules make is implemented, and only those: a runtime function the
+game does not import is not kept. `python run.py check` lists any that are missing (none today).
+
+The renderer draws at the game's own resolution (`render_resolution=4k`, the default: PS4 Pro mode,
+`sceKernelIsNeoMode` returns 1 and the video out is 3840x2160; or 1080p) and scales the picture to the
+window in `post_process.frag`. The only overlay is the PS4's system UI (save list, text entry, trophy
+notices), the Display Settings panel and the exit prompt (`gpu/shim/resogun_overlay.cpp`).
+
+## Running from the source tree
+
+Set `RESOGUN_GAME_DIR` to your decrypted dump (or pass `--game DIR` each time):
+
+```bash
+python run.py --timeout 20
+```
+
+- Without a command, `run.py` prepares `out/game/` if the dump or `scripts/` changed and starts the
+  game. The first `STOP:` or `Fault:` line it prints is the next thing to fix. `--timeout` ends the
+  run after that many seconds.
+- `python run.py check` lists the imports the runtime cannot resolve, by library (full list in
+  `out/game/missing-imports.txt`). `python run.py prepare` rebuilds the image only.
+- `--guest-arg SWITCH` passes one of the engine's own command-line switches (strings in the eboot:
+  `-nosplash`, `-no_video`, `-no_level_intro`, ...).
+- Saves go to `user/` (`--user DIR`), settings to `user/settings.ini`. Shader caches go to one folder
+  per PC, `%LOCALAPPDATA%\Resogun` (`~/.cache/resogun`), shared with installed copies
+  (`RESOGUN_GPU_USER_DIR` moves it).
+- Every `settings.ini` key has an environment variable that overrides it, named in
+  `settings.example.ini`. A variable left set in a shell keeps overriding the panel:
+  `RESOGUN_VBLANK_HZ` prints a warning at start for that reason.
+- `RESOGUN_VERBOSE=1` logs every routine event (threads, semaphores, memory maps, module loads).
+  `run.py` and the debug package's `diagnose/start.bat` turn it on.
+- Hang dump: once a frame has been shown, a picture held for `RESOGUN_HANG_DUMP` seconds (default 20,
+  `0` turns it off) logs every thread's name, CPU time and frames (`Hang:` lines, innermost first).
+  The `--timeout` watchdog prints the same list before it ends a run.
+
+## Development loop
+
+1. `python run.py --timeout 20` and read the first `STOP:` or `Fault:` line.
+2. Implement the function in the matching `src/runtime_*.c` export table (`{"name",function}`),
+   following the PS4 contract, with a comment that states it. Return "not available" for services a
+   PC does not have (PSN, the camera, the companion app).
+3. `bash build.sh`, run again.
+
+When an import shows up as a bare NID, add candidate names to `tools/ps4_names.txt` and run
+`python tools/name_imports.py out/game --write`: it hashes every candidate (and every name the
+runtime already implements) and appends the matches to `src/import_names.inc`. For a fault in guest
+code, `python tools/image_info.py flatten <module> out.bin` writes a module as a flat image to
+disassemble at the offset the log names, and `python tools/image_info.py got <offset>` names the
+import bound to a GOT slot.
+
+## Frame rate
+
+Resogun's game logic advances once per frame, by a step its frame clock fixes: the boot passes the
+constant 59.94 and allows no frame skip, so the game's speed is the rate at which it flips. Raising
+the PS4 vblank alone (shadPS4's approach) runs the game faster, not smoother.
+
+`frame_rate` (60, 120 or 180) sets both. `ResogunSettings::EffectiveFrameRate()` lowers it to what the
+display refreshes at, unless VSync is off with tearing allowed; the video out's vblank follows it
+(`GetVblankFrequency`, live), and at each flip `runtime_game_frame_rate()` (`src/runtime_game.c`)
+calls the engine's own `set_fps(rate x 0.999)` through the frame clock's vtable (the global at image
++0x152cd28, vtable image+0xc6c2c8, slot 3), after checking the vtable is the one it expects. A change
+from the panel applies on the next flip. Above about 200 FPS a guard in the spawner (the 0.005 at
+0x94283c) stops enemies spawning, so higher rates are not offered.
+
+After a rate change the present thread paces by its timer instead of following the display: with
+G-Sync, following the display's own timing settled at 97 FPS.
+
+## Starting, the title screen and leaving
+
+With `skip_intro=1` (the default) the loader passes `-nosplash`, then presses Cross once when the
+title screen appears: the AvPlayer opening `title.mp4` marks it (`runtime_pad_title_movie`,
+`src/runtime_pad.c`). A start lands in the main menu.
+
+On the title screen, Back (Circle, B, Escape) asks "Exit Resogun?" (`title_back_exits=1`); F4 asks
+anywhere. The prompt is drawn by the overlay and takes the input while open; Yes pushes the same
+quit event as closing the window. Holding Select (SDL's Back button) for two seconds opens the
+Display Settings panel (F10 too): the button's own press is held back while it is down, and a release
+before two seconds sends it to the game as a short tap.
+
+## Save data, DLC and trophies
+
+Saves are folders under `<save>/savedata/<user>/CUSA00038/` (`src/runtime_savedata.c`); Resogun keeps
+one, `savedata`. The save list dialog (`runtime_services.c`) lists them newest first.
+
+Resogun's 22 add-ons (ships and skins) are entitlement-only: the game asks
+`sceAppContentGetAddcontInfo` about each label it knows, and an add-on is installed when a folder of
+that name exists in `<save>/addcont/` or in the extra DLC folder (`--dlc`, `RESOGUN_DLC_DIR`;
+shadPS4's `addcont` with its `CUSA00038` folder works as it is). Nothing is read from those folders.
+
+Trophies come from the dump's `sce_sys/trophy/trophy00.trp` (65, TROP000-064); unlocks are kept in
+`<save>/trophies.dat` and shown as a notice.
+
+## Release folder and setup
+
+`resogun-setup.exe` (`setup/`) runs `prepare/run.py prepare` into `game/` beside it, rewrites the
+game's instructions for this CPU if needed, writes `settings.ini` from the template when there is
+none, sets its `skip_intro` line from the window's checkbox, and writes `paths.ini` with the game and
+save folders and, when one is chosen, `dlc=`. The command line does the same as the window:
+`resogun-setup.exe --help`.
+
+Started with no arguments, `resogun.exe` reads `paths.ini` and builds the command line `run.py`
+would pass (`src/launcher.c`); without a console its output goes to `log/resogun.log` in the save
+folder. It also watches the game: it starts the same command line as a child (on Windows in a job
+that ends it if the launcher is killed, on Linux by `fork` with `PR_SET_PDEATHSIG`), and when the
+game ends with an exit code other than 0 it notes the code in the log, copies the log to
+`log/crash-<date>-<time>.log` and says so in a message box. `RESOGUN_CRASH_WATCH=0` turns that off.
+
+Preparing the game needs Python 3.10 or newer with its standard library only; releases bundle
+python.org's embeddable Python in `prepare/python`. The CPU rewrite also needs `iced-x86`, which only
+CPUs missing an instruction set ever use. The icon of both exes is `res/resogun.ico`
+(`tools/make_app_icon.py` builds it from artwork).
+
+## Input
+
+The pad and keyboard layouts are fixed tables in `src/runtime_pad.c` (README "Controls"): gamepads map
+by button position, keys by physical position. `resogun --gamepad` prints the connected pad and its
+labels.
+
+Scripted input for automated runs: `RESOGUN_PAD_FILE` (held buttons and stick values, re-read when
+the file changes), `RESOGUN_PAD_RECORD` (F9 records the pad) and `RESOGUN_PAD_REPLAY`.
+
+## Layout
+
+| Path | What it is |
+|---|---|
+| `src/` | Loader (`loader.c`), launcher (`launcher.c`), the runtime (`runtime_*.c`) and the CPU rewrite (`isa_*.c`) |
+| `gpu/` | shadPS4's video core (`shadps4/`, changes marked `// resogun:`), the shim and overlay around it (`shim/`), CMake build |
+| `build.sh`, `build_windows.ps1`, `build_linux.sh` | The build (`build.sh`) and the local build, test and boot-check wrappers ([building.md](building.md)) |
+| `scripts/` | Building the game image: `prepare.py`, `link.py`, `isa_rewrite.py` |
+| `setup/` | `resogun-setup`, which sets up a release folder from a player's dump |
+| `res/` | The exes' icon, Windows resource script and manifests (`libs.manifest`: the DLL folder) |
+| `packaging/` | `diagnose/`, the glitch kit the debug package ships |
+| `.github/` | CI (`workflows/build.yml`) and its scripts: `ci-deps.sh` (Linux build dependencies), `smoke-test.sh` (a release on fresh distros) |
+| `tools/` | `package.py` (the release), `name_imports.py` (names NIDs), `image_info.py` (modules and GOT slots), `make_app_icon.py`, `screenshot.ps1` |
+| `tests/` | Python tests (`cd tests; python -m unittest`) and C/C++ tests (`build.sh --test`: its own list and every `*-test` in `gpu/CMakeLists.txt`) |
+| `docs/` | This guide and [building.md](building.md) |
