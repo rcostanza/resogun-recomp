@@ -50,6 +50,13 @@ void resogun_gpu_request_quit(void);
 /* 1 when settings.ini render_resolution (RESOGUN_RENDER_RESOLUTION) is 4k: the game runs in PS4
  * Pro mode with a 3840x2160 video out. Valid once resogun_gpu_init returned. */
 int resogun_render_4k(void);
+/* The game's display width at 2160 lines: 3840 (16:9) for a 16:9 or narrower output, up to 7680
+ * (32:9) for a wider one; the output at start decides (the window's size, the desktop's in
+ * borderless). The video out is that wide (half with render_resolution=1080p) and
+ * runtime_game_widen widens the engine to match. Valid once resogun_gpu_init returned. */
+int resogun_width_4k(void);
+/* Sets it back (3840) when the engine could not be widened; before the game opens its video out. */
+void resogun_set_width_4k(int width);
 /* 1 when settings.ini hdr (RESOGUN_HDR) is on: the video out offers BT.2020 PQ when the display
  * has an HDR10 surface, and the game then outputs HDR. Valid once resogun_gpu_init returned. */
 int resogun_hdr(void);

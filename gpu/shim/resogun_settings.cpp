@@ -54,6 +54,15 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         const auto [w, h] = ResogunGraphics::ParseWindowSize(value);
         v.window_width = w;
         v.window_height = h;
+    } else if (key == "aspect_ratio") {
+        int ratio = Aspect16x9;
+        for (int r = 0; r < AspectRatioCount; ++r) {
+            if (value == AspectRatioKeys[r]) ratio = r;
+        }
+        if (!value.empty() && value != AspectRatioKeys[ratio]) {
+            std::printf("Settings: aspect_ratio=%s is not 16:9, 21:9 or 32:9; using 16:9\n", value.c_str());
+        }
+        v.startup_aspect_ratio = v.aspect_ratio = ratio;
     } else if (key == "skip_intro") {
         v.skip_intro = Truthy(value);
     } else if (key == "title_back_exits") {
@@ -86,6 +95,7 @@ std::vector<std::pair<std::string, std::string>> DisplayKeys() {
     return {
         {"display_mode", std::string(ResogunGraphics::DisplayModeKeys[std::clamp(v.display_mode.load(), 0, 2)])},
         {"monitor", monitor < 0 ? std::string() : std::to_string(monitor)},
+        {"aspect_ratio", std::string(AspectRatioKeys[std::clamp(v.aspect_ratio.load(), 0, AspectRatioCount - 1)])},
         {"output_resolution", std::to_string(v.window_width.load()) + "x" + std::to_string(v.window_height.load())},
         {"vsync", v.vsync ? "1" : "0"},
         {"tearing", v.tearing ? "1" : "0"},
@@ -200,6 +210,7 @@ void Load() {
         {"RESOGUN_TEARING", "tearing"},
         {"RESOGUN_MONITOR", "monitor"},           {"RESOGUN_WINDOW", "output_resolution"},
         {"RESOGUN_OUTPUT_RESOLUTION", "output_resolution"},
+        {"RESOGUN_ASPECT_RATIO", "aspect_ratio"},
         {"RESOGUN_AUDIO_CHANNELS", "audio_channels"},
         {"RESOGUN_SKIP_INTRO", "skip_intro"},     {"RESOGUN_FRAME_RATE", "frame_rate"},
         {"RESOGUN_TITLE_BACK_EXITS", "title_back_exits"},
@@ -272,6 +283,14 @@ extern "C" void resogun_set_frame_rate(int rate) {
 
 extern "C" int resogun_hdr(void) {
     return ResogunSettings::Get().startup_hdr ? 1 : 0;
+}
+
+extern "C" int resogun_width_4k(void) {
+    return ResogunSettings::Get().startup_width_4k.load();
+}
+
+extern "C" void resogun_set_width_4k(int width) {
+    ResogunSettings::Get().startup_width_4k = width;
 }
 
 extern "C" int resogun_render_4k(void) {

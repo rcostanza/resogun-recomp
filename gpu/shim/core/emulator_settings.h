@@ -11,6 +11,7 @@
 double ResogunWindowRefreshRate(); // resogun_gpu.cpp: exact rate of the window's display, 0 when unknown
 bool ResogunWaitForVblank(); // resogun_gpu.cpp: waits for the window's display to start a refresh; false when it cannot (not Windows)
 extern "C" int resogun_render_4k(void); // resogun_settings.cpp: render_resolution=4k
+extern "C" int resogun_width_4k(void);  // resogun_settings.cpp: the display width at 2160 lines
 inline bool ResogunRender4k() { return resogun_render_4k() != 0; }
 extern "C" int resogun_hdr(void); // resogun_settings.cpp: settings.ini hdr
 extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (60, 90, 120, 180)
@@ -29,8 +30,10 @@ public:
         return v ? std::strtol(v, nullptr, 10) : fallback;
     }
     s32 GetGpuId() { static const auto value = s32(Number("RESOGUN_GPU_ID", -1)); return value; }
-    // resogun: the video out size, 3840x2160 with render_resolution=4k (resogun_render_4k).
-    u32 GetInternalScreenWidth() { static const auto value = u32(Number("RESOGUN_INTERNAL_WIDTH", ResogunRender4k() ? 3840 : 1920)); return value; }
+    // resogun: the video out size, 3840x2160 with render_resolution=4k (resogun_render_4k), half
+    // with 1080p; wider for a wider output (resogun_width_4k: 5120 at 21:9). The engine takes its
+    // aspect ratio from it.
+    u32 GetInternalScreenWidth() { static const auto value = u32(Number("RESOGUN_INTERNAL_WIDTH", ResogunRender4k() ? resogun_width_4k() : resogun_width_4k() / 2)); return value; }
     u32 GetInternalScreenHeight() { static const auto value = u32(Number("RESOGUN_INTERNAL_HEIGHT", ResogunRender4k() ? 2160 : 1080)); return value; }
     // resogun: Relaxed by default: without readbacks, guest code that reads GPU-written
     // vertices sees stale data; Relaxed costs no measurable frame rate.

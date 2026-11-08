@@ -62,6 +62,7 @@ private:
     std::mutex text_mutex;
     bool text_requested{}, text_active{};
     int display_mode = -1; ///< applied ResogunSettings display mode (window thread)
+    int aspect_ratio = -1; ///< the aspect ratio the fullscreen pick was made for (window thread)
     void ApplyDisplayMode(int mode);
     int monitor = -1; ///< applied ResogunSettings monitor (window thread)
     void ApplyMonitor(int index);

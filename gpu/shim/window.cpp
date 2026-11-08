@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <tuple>
 #include <utility>
 #include <vector>
 #include <cstdio>
@@ -67,27 +68,60 @@ static SDL_DisplayID MonitorDisplay() {
     return chosen;
 }
 
-// The display's fullscreen sizes of the desktop's shape (within 1%: 1366x768 counts as 16:9),
-// largest first, without repeats (refresh rates and pixel densities collapse), for the Display
-// Settings page; the size from settings.ini is added when missing.
-static void ListResolutions(SDL_DisplayID display) {
-    auto& settings = ResogunSettings::Get();
+// A display's fullscreen modes (refresh rates and pixel densities collapse), largest first.
+static std::vector<std::pair<int, int>> FullscreenModes(SDL_DisplayID display) {
     std::vector<std::pair<int, int>> sizes;
-    const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
-    const double shape = desktop && desktop->h > 0 ? double(desktop->w) / desktop->h : 0.0;
     int count = 0;
     if (SDL_DisplayMode** modes = SDL_GetFullscreenDisplayModes(display, &count)) {
         for (int i = 0; i < count; ++i) {
-            const double ratio = double(modes[i]->w) / modes[i]->h;
-            if (modes[i]->w >= 640 && modes[i]->h >= 360 && (!shape || std::abs(ratio / shape - 1.0) <= 0.01))
-                sizes.emplace_back(modes[i]->w, modes[i]->h);
+            if (modes[i]->w >= 640 && modes[i]->h >= 360) sizes.emplace_back(modes[i]->w, modes[i]->h);
         }
         SDL_free(modes);
     }
-    sizes.emplace_back(settings.window_width.load(), settings.window_height.load());
     std::sort(sizes.begin(), sizes.end(), std::greater<>());
     sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
-    settings.resolutions = std::move(sizes);
+    return sizes;
+}
+
+// The window sizes of each aspect ratio for the Display Settings page: the display's fullscreen
+// modes of that shape and the common sizes of it, all within the desktop, largest first; a shape
+// with none gets the desktop's size fitted to it. A saved window size of another shape than
+// aspect_ratio moves to the nearest in height of that shape's.
+static void ListResolutions(SDL_DisplayID display) {
+    namespace S = ResogunSettings;
+    auto& settings = S::Get();
+    settings.modes = FullscreenModes(display);
+    const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(display);
+    settings.desktop_width = desktop ? desktop->w : 0;
+    settings.desktop_height = desktop ? desktop->h : 0;
+    static constexpr std::pair<int, int> common[] = {
+        {1280, 720}, {1600, 900}, {1920, 1080}, {2560, 1440}, {3200, 1800}, {3840, 2160}, {5120, 2880}, // 16:9
+        {1720, 720}, {2560, 1080}, {3440, 1440}, {3840, 1600}, {5120, 2160},                             // 21:9
+        {1920, 540}, {2560, 720}, {3200, 900}, {3840, 1080}, {5120, 1440}, {7680, 2160},                 // 32:9
+    };
+    std::vector<std::pair<int, int>> candidates(settings.modes);
+    candidates.insert(candidates.end(), std::begin(common), std::end(common));
+    const std::pair<int, int> saved{settings.window_width.load(), settings.window_height.load()};
+    candidates.push_back(saved);
+    for (auto& sizes : settings.resolutions) sizes.clear();
+    for (const auto& [w, h] : candidates) {
+        const int ratio = S::AspectRatioOf(w, h);
+        if (ratio >= 0 && (!desktop || (w <= desktop->w && h <= desktop->h))) settings.resolutions[ratio].emplace_back(w, h);
+    }
+    for (int r = 0; r < S::AspectRatioCount; ++r) {
+        auto& sizes = settings.resolutions[r];
+        if (sizes.empty()) sizes.push_back(desktop ? S::FitAspect(desktop->w, desktop->h, r) : std::pair{1920, 1080});
+        std::sort(sizes.begin(), sizes.end(), std::greater<>());
+        sizes.erase(std::unique(sizes.begin(), sizes.end()), sizes.end());
+    }
+    const int ratio = settings.aspect_ratio;
+    if (S::AspectRatioOf(saved.first, saved.second) != ratio) {
+        const auto size = S::NearestHeight(settings.resolutions[ratio], saved.second);
+        settings.window_width = size.first;
+        settings.window_height = size.second;
+        std::printf("Display: window size %dx%d is not %s; using %dx%d\n", saved.first, saved.second,
+                    S::AspectRatioKeys[ratio].data(), size.first, size.second);
+    }
 }
 
 // resogun: a window opens at the size in settings.ini (window), fitted to the chosen display's
@@ -114,6 +148,22 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     const SDL_DisplayID display = MonitorDisplay();
     ListResolutions(display);
     resolution = {ResogunSettings::Get().window_width.load(), ResogunSettings::Get().window_height.load()};
+    {
+        // The game's shape is fixed for the run: the window's size, or what fullscreen picks.
+        auto& settings = ResogunSettings::Get();
+        const int mode = settings.display_mode;
+        auto [w, h] = resolution;
+        if (mode != ResogunGraphics::Windowed) {
+            const auto choice = ResogunSettings::PickFullscreen(mode == ResogunGraphics::Fullscreen, settings.aspect_ratio,
+                                                                {settings.desktop_width, settings.desktop_height}, settings.modes);
+            std::tie(w, h) = choice.picture;
+        }
+        settings.startup_width_4k = ResogunSettings::WideWidth4k(w, h);
+        std::printf("Display: %s %dx%d (%s): the game's picture is %dx2160%s\n",
+                    mode == ResogunGraphics::Windowed ? "window" : "fullscreen picture", w, h,
+                    ResogunSettings::AspectLabel(w, h).c_str(), settings.startup_width_4k.load(),
+                    settings.startup_width_4k > 3840 ? ", wider than the PS4's" : "");
+    }
     const bool too_large = StartSize(width_, height_, display);
     SDL_PropertiesID props = SDL_CreateProperties();
     SDL_SetStringProperty(props, SDL_PROP_WINDOW_CREATE_TITLE_STRING, title);
@@ -165,19 +215,27 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     LOG_INFO(Frontend, "Window {}x{} on {}", w, h, driver);
 }
 
-// Windowed, borderless (desktop-sized, no mode change) or exclusive fullscreen at the display mode
-// closest to the chosen resolution (the desktop's when none is close). Window thread only (SDL).
-// The swapchain follows the size events.
+// Windowed, borderless (desktop-sized, no mode change) or exclusive fullscreen at the display's
+// largest mode of the aspect ratio (the desktop's when it has none); the fullscreen modes show the
+// picture PickFullscreen fits in it (fullscreen_width/height). Window thread only (SDL). The
+// swapchain follows the size events.
 void WindowSDL::ApplyDisplayMode(int mode) {
     display_mode = mode;
+    aspect_ratio = ResogunSettings::Get().aspect_ratio;
     if (mode == ResogunGraphics::Windowed) {
         SDL_SetWindowFullscreen(window, false);
     } else {
+        auto& settings = ResogunSettings::Get();
         const SDL_DisplayID display = SDL_GetDisplayForWindow(window);
         SDL_DisplayMode chosen{};
         const SDL_DisplayMode* target = SDL_GetDesktopDisplayMode(display);
-        if (mode == ResogunGraphics::Fullscreen &&
-            SDL_GetClosestFullscreenDisplayMode(display, resolution.first, resolution.second, 0.0f, false, &chosen)) {
+        const auto choice = ResogunSettings::PickFullscreen(
+            mode == ResogunGraphics::Fullscreen, aspect_ratio, target ? std::pair{target->w, target->h} : std::pair{0, 0},
+            FullscreenModes(display));
+        settings.fullscreen_width = choice.picture.first;
+        settings.fullscreen_height = choice.picture.second;
+        if (choice.mode.first &&
+            SDL_GetClosestFullscreenDisplayMode(display, choice.mode.first, choice.mode.second, 0.0f, false, &chosen)) {
             target = &chosen;
         }
         const bool exclusive = mode == ResogunGraphics::Fullscreen && target;
@@ -190,13 +248,11 @@ void WindowSDL::ApplyDisplayMode(int mode) {
     std::printf("Window: %s\n", ResogunGraphics::DisplayModeNames[mode]);
 }
 
-// A new resolution: a window takes that size (shrunk to fit the display's usable area), centred;
-// exclusive fullscreen switches to the closest mode; borderless keeps the desktop's.
+// A new window size: a window takes it (shrunk to fit the display's usable area), centred; the
+// fullscreen modes pick their own (ApplyDisplayMode) and use it when the window is windowed again.
 void WindowSDL::ApplyResolution(std::pair<int, int> size) {
     resolution = size;
-    if (display_mode == ResogunGraphics::Fullscreen) {
-        ApplyDisplayMode(display_mode);
-    } else if (display_mode == ResogunGraphics::Windowed) {
+    if (display_mode == ResogunGraphics::Windowed) {
         const SDL_DisplayID display = SDL_GetDisplayForWindow(window);
         s32 w = 0, h = 0;
         StartSize(w, h, display);
@@ -302,7 +358,8 @@ bool WindowSDL::PollEvents() {
             UpdateTextTitle();
         }
     }
-    if (const int mode = ResogunSettings::Get().display_mode; mode != display_mode) {
+    if (const int mode = ResogunSettings::Get().display_mode;
+        mode != display_mode || (mode != ResogunGraphics::Windowed && ResogunSettings::Get().aspect_ratio != aspect_ratio)) {
         ApplyDisplayMode(mode);
     }
     if (const int index = ResogunSettings::Get().monitor; index != monitor) {

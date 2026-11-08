@@ -55,6 +55,7 @@ if [[ ${1:-} == --test ]]; then
     run_test content tests/test_content.c "${compat[@]}"
     run_test eventflag tests/test_eventflag.c
     run_test json tests/test_json.c
+    run_test wide tests/test_wide.c -lm
     run_test fiber tests/test_fiber.c
     run_test threadcalls tests/test_threadcalls.c "${compat[@]}"
     run_test net tests/test_net.c "${compat[@]}" "${net[@]}"

@@ -113,8 +113,38 @@ downloads that remain with the guest instruction and the GPU writer behind each.
 
 The engine's output size table (1920x1080 on PS4, 3840x2160 on PS4 Pro; eboot 0xa5d120) sets only
 the display buffers and the final pass: patched to 1280x720, the scene's passes still render at
-1920x1080 for the same GPU time, so there is no 720p mode. The scene size follows PS4 Pro mode
-some other way (1920x2160 checkerboard in 4K), probably in the render scripts in the game data.
+1920x1080 for the same GPU time, so there is no 720p mode. The scene's sizes are fixed in the
+render scripts in the game data: each target is created by name with its size (`mrt_albedo`
+1920x1080, or 1920x2160 checkerboard in PS4 Pro mode; `ssao_*` at half; `menu_overlay` for the pause
+menu). `RESOGUN_VERBOSE=1` lists the ones a wide picture widens.
+
+### Ultrawide
+
+The `aspect_ratio` setting picks the picture's shape: in windowed mode the window has it (its size
+list holds only sizes of that ratio), and the fullscreen modes fit it into the screen
+(`ResogunSettings::PickFullscreen`: borderless the desktop, exclusive the largest mode of the ratio,
+bars otherwise). A 21:9 or 32:9 picture is made at start: `ResogunSettings::WideWidth4k` turns it into a width at 2160 lines (5120 for 2560x1080,
+7680 for 32:9; 3840 for 16:9 and anything narrower). Three things make the engine use it:
+
+- the video out is that wide (half in 1080p mode; `emulator_settings.h`). The engine takes its
+  aspect ratio from the video out's size, and its gameplay camera then shows more to the sides
+  (with the camera correction below, the vertical view stays the PS4's: Hor+);
+- `runtime_game_widen` (src/runtime_game.c) writes it into the size table, so the display buffers
+  match;
+- the same function puts a jmp to a stub at the start of the engine's three create functions
+  (0x476aa0 render targets, 0x478840 and 0x478910 depth buffers). The stub widens a 16:9 or 8:9
+  (checkerboard) size by width/3840 and runs the function's own 17-byte prologue. The main menu's
+  cards (`menu_slide_*`, `dummy_depth*`) keep their size;
+- the engine's perspective has a vertical half-angle of tan(fov/2)/sqrt(1+aspect) (fitted to the
+  main menu's and gameplay camera's matrices at 16:9, 21:9 and 32:9), so on its own a wider picture
+  also sees less above and below (10% at 21:9, 28% at 32:9), pushing the HUD and the menus, drawn
+  in 3D in front of the camera, past the top and bottom. Every camera passes its projection
+  through 0x420bd0 (this, view, projection, fov, near, far, aspect); for perspective cameras of the
+  picture's aspect a stub passes a copy with the 16:9 vertical scale and the fov that gives it.
+
+The main menu's backdrop only covers the middle 16:9, so the menus show dark sides, and the pause
+menu darkens only the middle 16:9; the HUD stays in the middle 16:9 too. The shape is set for the run: a resolution of another shape shows "(shape
+after restart)" on the Display Settings page.
 
 ## Starting, the title screen and leaving
 

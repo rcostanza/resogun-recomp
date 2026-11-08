@@ -109,11 +109,17 @@ std::atomic<bool> display_open{false};
 
 int display_row = 0;
 bool display_dirty = false;
+// An aspect ratio and window size being chosen on the panel: the window takes them once the rows
+// have rested for a second (or the panel closes), not at each step. -1 and {0, 0} when none.
+int pending_aspect = -1;
+std::pair<int, int> pending_resolution{0, 0};
+std::chrono::steady_clock::time_point pending_since{};
+constexpr auto kResolutionSettle = std::chrono::seconds(1);
 // The exit prompt (F4, or Back on the title screen: src/runtime_pad.c); its focus (0 No, 1 Yes) is
 // guarded by imgui_mutex.
 std::atomic<bool> exit_open{false};
 int exit_focus = 0;
-enum DisplayRow : int { RowMode, RowResolution, RowMonitor, RowVsync, RowFps, RowRender, RowHdr, RowCount };
+enum DisplayRow : int { RowAspect, RowMode, RowResolution, RowMonitor, RowVsync, RowFps, RowRender, RowHdr, RowCount };
 
 // The colours of the game's own menus (Main Menu, Options): teal bars on a dark, see-through
 // backdrop inside a thin cyan frame.
@@ -126,6 +132,8 @@ constexpr ImU32 Row = Rgb(0x0c, 0x4c, 0x5c, 0xe0), RowLow = Rgb(0x06, 0x2c, 0x38
 constexpr ImU32 Focus = Rgb(0x06, 0x86, 0xab), FocusLow = Rgb(0x01, 0x28, 0x3c);
 constexpr ImU32 Text = Rgb(0xff, 0xff, 0xff), TextDim = Rgb(0xc4, 0xe8, 0xee), Shadow = Rgb(0x00, 0x18, 0x22, 0xc0);
 constexpr ImU32 Help = Rgb(0xb0, 0xe4, 0xec);
+// A setting that does not apply in the current mode: greyed out and passed over by Up/Down.
+constexpr ImU32 RowOff = Rgb(0x0a, 0x26, 0x2e, 0xb0), RowOffLow = Rgb(0x05, 0x16, 0x1c, 0xb0), TextOff = Rgb(0x5c, 0x7c, 0x84);
 } // namespace PageInk
 
 s64 NowMs() {
@@ -288,21 +296,67 @@ int StepValue(const std::array<T, N>& values, int current, int delta) {
     return values[(i + delta + int(N)) % int(N)];
 }
 
+// imgui_mutex held: the resolution the panel shows, the one being chosen or the window's.
+std::pair<int, int> ShownResolution() {
+    const auto& s = ResogunSettings::Get();
+    return pending_resolution.first ? pending_resolution
+                                    : std::pair<int, int>{s.window_width.load(), s.window_height.load()};
+}
+
+// imgui_mutex held: the aspect ratio the panel shows, the one being chosen or the setting.
+int ShownAspect() {
+    return pending_aspect >= 0 ? pending_aspect : ResogunSettings::Get().aspect_ratio.load();
+}
+
+// imgui_mutex held: hands the chosen aspect ratio and window size to the window (which follows
+// aspect_ratio, window_width and window_height) once they have rested for kResolutionSettle, or at
+// once with `now`.
+void SettleResolution(bool now) {
+    if ((pending_aspect < 0 && !pending_resolution.first) ||
+        (!now && std::chrono::steady_clock::now() - pending_since < kResolutionSettle)) {
+        return;
+    }
+    auto& s = ResogunSettings::Get();
+    if (pending_resolution.first) {
+        s.window_width = pending_resolution.first;
+        s.window_height = pending_resolution.second;
+    }
+    if (pending_aspect >= 0) s.aspect_ratio = pending_aspect;
+    pending_aspect = -1;
+    pending_resolution = {0, 0};
+}
+
+// imgui_mutex held: the size the fullscreen modes show for the panel's aspect ratio.
+std::pair<int, int> ShownFullscreen() {
+    const auto& s = ResogunSettings::Get();
+    if (pending_aspect < 0 && s.fullscreen_width > 0) return {s.fullscreen_width.load(), s.fullscreen_height.load()};
+    return ResogunSettings::PickFullscreen(s.display_mode == ResogunGraphics::Fullscreen, ShownAspect(),
+                                           {s.desktop_width, s.desktop_height}, s.modes)
+        .picture;
+}
+
 // imgui_mutex held: the focused row's value one step forward (delta 1) or back (-1).
 void ChangeDisplayRow(int row, int delta) {
     namespace G = ResogunGraphics;
     auto& s = ResogunSettings::Get();
     switch (row) {
     case RowMode: s.display_mode = (s.display_mode + delta + G::DisplayModeCount) % G::DisplayModeCount; break;
-    case RowResolution: { // listed largest first: right steps up to a larger size
-        const auto& sizes = s.resolutions;
-        if (sizes.empty()) return;
-        const std::pair<int, int> now{s.window_width.load(), s.window_height.load()};
+    case RowAspect: { // the window moves to the new shape's size nearest in height
+        const int next = (ShownAspect() + delta + ResogunSettings::AspectRatioCount) % ResogunSettings::AspectRatioCount;
+        pending_aspect = next;
+        pending_resolution = ResogunSettings::NearestHeight(s.resolutions[next], ShownResolution().second);
+        pending_since = std::chrono::steady_clock::now();
+        break;
+    }
+    case RowResolution: { // windowed only, listed largest first: right steps up to a larger size
+        const auto& sizes = s.resolutions[ShownAspect()];
+        if (sizes.empty() || s.display_mode != G::Windowed) return;
+        const std::pair<int, int> now = ShownResolution();
         int at = 0;
         while (at + 1 < int(sizes.size()) && sizes[at] > now) ++at;
         at = std::clamp(at - delta, 0, int(sizes.size()) - 1);
-        s.window_width = sizes[at].first;
-        s.window_height = sizes[at].second;
+        pending_resolution = sizes[at];
+        pending_since = std::chrono::steady_clock::now();
         break;
     }
     case RowMonitor: { // the primary, then each listed display
@@ -335,6 +389,7 @@ void ChangeDisplayRow(int row, int delta) {
 
 // imgui_mutex held. Saving happens once, on close.
 void CloseDisplaySettings() {
+    SettleResolution(true);
     display_open = false;
     if (display_dirty) {
         display_dirty = false;
@@ -345,7 +400,9 @@ void CloseDisplaySettings() {
 struct DisplayRowText {
     const char* label;
     std::string value;
-    const char* help;
+    std::string help;
+    bool changes = true; ///< Left/Right change it (arrows around the value)
+    bool enabled = true; ///< applies in the current window mode; else greyed out and skipped
 };
 
 DisplayRowText DisplayRowAt(int row) {
@@ -353,15 +410,29 @@ DisplayRowText DisplayRowAt(int row) {
     switch (row) {
     case RowMode: {
         static const char* const names[] = {"Windowed", "Borderless windowed", "Fullscreen"};
-        return {"Window mode", names[std::clamp(s.display_mode.load(), 0, 2)],
-                "Windowed, a borderless window covering the screen, or exclusive fullscreen."};
+        std::string help = "Windowed, a borderless window covering the screen, or exclusive fullscreen.";
+        if (s.display_mode != ResogunGraphics::Windowed) {
+            const auto [fw, fh] = ShownFullscreen();
+            help += " Fullscreen picks its size from the screen and the aspect ratio, now " + std::to_string(fw) +
+                    " x " + std::to_string(fh) + ", with black bars when the screen is of another shape.";
+        }
+        return {"Window mode", names[std::clamp(s.display_mode.load(), 0, 2)], help};
+    }
+    case RowAspect: {
+        const int ratio = ShownAspect();
+        std::string text(ResogunSettings::AspectRatioKeys[ratio]);
+        if (ratio == ResogunSettings::Aspect16x9) text += "  (PS4)";
+        if (ratio != s.startup_aspect_ratio) text += "  (after restart)";
+        return {"Aspect ratio", text,
+                "The picture's shape. 21:9 and 32:9 show more of the level to the sides, for ultrawide screens; "
+                "the menus stay 16:9. A window takes sizes of this shape; fullscreen picks one from the screen. "
+                "The game takes a new shape after a restart."};
     }
     case RowResolution: {
-        std::string text = std::to_string(s.window_width.load()) + " x " + std::to_string(s.window_height.load());
-        if (s.display_mode == ResogunGraphics::Borderless) text += "  (desktop in borderless)";
-        return {"Resolution", text,
-                "The window's size when windowed, the screen mode in fullscreen. Borderless always uses the "
-                "desktop resolution."};
+        const auto [w, h] = ShownResolution();
+        const bool windowed = s.display_mode == ResogunGraphics::Windowed;
+        return {"Windowed resolution", std::to_string(w) + " x " + std::to_string(h) + "  " + ResogunSettings::AspectLabel(w, h),
+                "The window's size, among those of the aspect ratio that fit the screen.", windowed, windowed};
     }
     case RowMonitor: {
         std::string name = "Primary display";
@@ -461,7 +532,7 @@ void DisplaySettingsBox() {
     // The panel, centred, and the title tab on its top edge.
     const float row_h = 64.0f * px, gap = 12.0f * px, pad = 30.0f * px;
     const float panel_w = std::min(size.x - 80.0f * px, 1180.0f * px);
-    const float panel_h = pad * 2.0f + RowCount * row_h + (RowCount - 1) * gap;
+    const float panel_h = pad * 2.0f + float(RowCount) * row_h + float(RowCount - 1) * gap;
     const float x0 = o.x + (size.x - panel_w) * 0.5f, x1 = x0 + panel_w;
     const float top = o.y + std::max(110.0f * px, (size.y - panel_h) * 0.42f);
     dl->AddRectFilled(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Panel, 10.0f * px);
@@ -480,32 +551,33 @@ void DisplaySettingsBox() {
     const float label = 32.0f * px, value = 30.0f * px, slant = 14.0f * px;
     const float bx0 = x0 + pad, bx1 = x1 - pad;
     float y = top + pad;
-    const char* help = "";
+    std::string help;
     for (int row = 0; row < RowCount; ++row) {
         const DisplayRowText text = DisplayRowAt(row);
         const bool focus = row == display_row;
         const ImVec2 a(bx0, y), b(bx1, y + row_h);
         const float mid = y + row_h * 0.5f;
-        SlantedBar(dl, a, b, slant, focus ? PageInk::Focus : PageInk::Row, focus ? PageInk::FocusLow : PageInk::RowLow);
+        const bool off = !text.enabled;
+        SlantedBar(dl, a, b, slant, focus ? PageInk::Focus : off ? PageInk::RowOff : PageInk::Row,
+                   focus ? PageInk::FocusLow : off ? PageInk::RowOffLow : PageInk::RowLow);
         SlantedOutline(dl, a, b, slant, focus ? PageInk::Frame : PageInk::FrameDim, focus ? line * 1.5f : line);
-        PageText(dl, font, label, ImVec2(bx0 + slant + 28.0f * px, mid - label * 0.56f), text.label,
-                 focus ? PageInk::Text : PageInk::TextDim);
+        const ImU32 ink = focus ? PageInk::Text : off ? PageInk::TextOff : PageInk::TextDim;
+        PageText(dl, font, label, ImVec2(bx0 + slant + 28.0f * px, mid - label * 0.56f), text.label, ink);
         const float vw = font->CalcTextSizeA(value, FLT_MAX, 0.0f, text.value.c_str()).x;
         const float value_x = bx1 - slant - 70.0f * px - vw;
-        PageText(dl, font, value, ImVec2(value_x, mid - value * 0.56f), text.value.c_str(),
-                 focus ? PageInk::Text : PageInk::TextDim);
-        if (focus) {
+        PageText(dl, font, value, ImVec2(value_x, mid - value * 0.56f), text.value.c_str(), ink);
+        if (focus && text.changes) {
             const float chevron = row_h * 0.36f, stroke = 3.0f * px;
             Chevron(dl, ImVec2(value_x - 26.0f * px, mid), chevron, -1, PageInk::Text, stroke);
             Chevron(dl, ImVec2(bx1 - slant - 40.0f * px, mid), chevron, 1, PageInk::Text, stroke);
-            help = text.help;
         }
+        if (focus) help = text.help;
         y += row_h + gap;
     }
 
     // The focused setting's help under the panel, wrapped to its width.
     const float help_size = 26.0f * px;
-    dl->AddText(font, help_size, ImVec2(x0 + 8.0f * px, top + panel_h + 22.0f * px), PageInk::Help, help, nullptr,
+    dl->AddText(font, help_size, ImVec2(x0 + 8.0f * px, top + panel_h + 22.0f * px), PageInk::Help, help.c_str(), nullptr,
                 panel_w - 16.0f * px);
 
     // The buttons, each on a tab, along the bottom.
@@ -664,8 +736,11 @@ bool HandleDisplayEvent(const SDL_Event& event) {
     } else {
         return event.type == SDL_EVENT_KEY_UP || event.type == SDL_EVENT_GAMEPAD_BUTTON_UP;
     }
-    if (move) {
-        display_row = (display_row + move + RowCount) % RowCount;
+    if (move) { // greyed-out rows are passed over
+        for (int i = 0; i < RowCount; ++i) {
+            display_row = (display_row + move + RowCount) % RowCount;
+            if (DisplayRowAt(display_row).enabled) break;
+        }
     }
     if (change) {
         ChangeDisplayRow(display_row, change);
@@ -939,6 +1014,7 @@ bool HandleChoiceEvent(const SDL_Event& event) {
 }
 
 void DrawWindows() {
+    SettleResolution(false);
     Splash();
     if (loading) {
         LoadingScreen();
