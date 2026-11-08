@@ -36,10 +36,11 @@ A higher frame rate needs a PC that holds it: Resogun's game speed follows the f
 
 ## Install and play
 
-1. Unzip the release anywhere, for example `C:\Games\Resogun`.
-2. Run `resogun-setup.exe`.
-3. Choose your **game folder** (the dump), optionally a **DLC folder**, and a **save folder** (by default `save` inside the release folder). Each row says whether the folder is usable, and **Install** turns on once the game folder holds your dump (and the DLC folder exists, if you named one). Press it: setup prepares the game from your dump in a few seconds and offers a desktop shortcut. Your dumps are only read, never changed.
-4. Press **Play Game**. Later, start `resogun.exe` or the shortcut.
+1. [Download the latest release here](https://github.com/rcostanza/resogun-recomp/releases/latest)
+2. Unzip the release anywhere, for example `C:\Games\Resogun`.
+3. Run `resogun-setup.exe`.
+4. Choose your **game folder** (the dump), optionally a **DLC folder**, and a **save folder** (by default `save` inside the release folder). Each row says whether the folder is usable, and **Install** turns on once the game folder holds your dump (and the DLC folder exists, if you named one). Press it: setup prepares the game from your dump in a few seconds and offers a desktop shortcut. Your dumps are only read, never changed.
+5. Press **Play Game**. Later, start `resogun.exe` or the shortcut.
 
 Run `resogun-setup.exe` again any time to change folders; it offers to copy your saves when the save folder moves. Untick **Skip the intro logos** there (or set `skip_intro=0` in `settings.ini`) to see the logos and the title screen again.
 
