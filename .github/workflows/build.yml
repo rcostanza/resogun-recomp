@@ -51,11 +51,22 @@ jobs:
         with:
           python-version: '3.15'
 
-      # The minimal FFmpeg (tools/build_ffmpeg.sh): rebuilt only when that script changes.
-      - uses: actions/cache@v4
+      # The minimal FFmpeg (tools/build_ffmpeg.sh): rebuilt only when that script changes. Built and
+      # saved in steps of its own, so a later failure still keeps it; build.sh then finds its stamp.
+      - id: ffmpeg
+        uses: actions/cache/restore@v4
         with:
           path: out/ffmpeg
           key: ffmpeg-${{ runner.os }}-${{ hashFiles('tools/build_ffmpeg.sh') }}
+      - name: FFmpeg
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        # The CLANG64 clang and nasm, as build.sh puts them on PATH.
+        run: PATH="/c/msys64/clang64/bin:/c/msys64/usr/bin:$PATH" bash tools/build_ffmpeg.sh out/ffmpeg
+      - if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: out/ffmpeg
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
 
       # A crashing test exits instead of waiting on a Windows Error Reporting dialog.
       - name: No crash dialogs
@@ -126,10 +137,20 @@ jobs:
       - name: Dependencies
         run: bash .github/scripts/ci-deps.sh
 
-      - uses: actions/cache@v4
+      # FFmpeg as on Windows: restored, or built (with CC=clang-18, as build.sh) and saved at once.
+      - id: ffmpeg
+        uses: actions/cache/restore@v4
         with:
           path: out/ffmpeg
           key: ffmpeg-${{ runner.os }}-${{ hashFiles('tools/build_ffmpeg.sh') }}
+      - name: FFmpeg
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        run: bash tools/build_ffmpeg.sh out/ffmpeg
+      - if: steps.ffmpeg.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: out/ffmpeg
+          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
 
       - name: Build and run the runtime tests
         timeout-minutes: 60
