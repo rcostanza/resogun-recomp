@@ -84,13 +84,16 @@ Resogun's game logic advances once per frame, by a step its frame clock fixes: t
 constant 59.94 and allows no frame skip, so the game's speed is the rate at which it flips. Raising
 the PS4 vblank alone (shadPS4's approach) runs the game faster, not smoother.
 
-`frame_rate` (60, 90, 120 or 180) sets both. `ResogunSettings::EffectiveFrameRate()` lowers it to what the
+`frame_rate` (30, 60, 90, 120 or 180) sets both. `ResogunSettings::EffectiveFrameRate()` lowers it to what the
 display refreshes at, unless VSync is off with tearing allowed; the video out's vblank follows it
 (`GetVblankFrequency`, live), and at each flip `runtime_game_frame_rate()` (`src/runtime_game.c`)
 calls the engine's own `set_fps(rate x 0.999)` through the frame clock's vtable (the global at image
 +0x152cd28, vtable image+0xc6c2c8, slot 3), after checking the vtable is the one it expects. A change
 from the panel applies on the next flip. Above about 200 FPS a guard in the spawner (the 0.005 at
 0x94283c) stops enemies spawning, so higher rates are not offered.
+At 30 the vblank stays at 60: with an engine target of 30 the game calls `sceVideoOutSetFlipRate(1)`
+(a flip every second vblank, as the PS4's 30 FPS games do), and back to 0 when the target rises
+again, live switches included; a 30 Hz vblank under that ran it at 15.
 
 After a rate change the present thread paces by its timer instead of following the display: with
 G-Sync, following the display's own timing settled at 97 FPS.

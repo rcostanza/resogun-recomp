@@ -703,7 +703,7 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
 
     Common::AccurateTimer timer{vblank_period};
 
-    // resogun: one flip per vblank (settings.ini frame_rate: 60, 120 or 180) on any display.
+    // resogun: one flip per vblank (settings.ini frame_rate: 60 to 180; at 30 the game itself flips every second vblank) on any display.
     // Resogun runs its game logic once per flip at its own target rate (set to match,
     // src/runtime_game.c), so following a faster display ran the game at double speed.
     int vblank_hz = int(EmulatorSettings.GetVblankFrequency());

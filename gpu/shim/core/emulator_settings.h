@@ -14,7 +14,7 @@ extern "C" int resogun_render_4k(void); // resogun_settings.cpp: render_resoluti
 extern "C" int resogun_width_4k(void);  // resogun_settings.cpp: the display width at 2160 lines
 inline bool ResogunRender4k() { return resogun_render_4k() != 0; }
 extern "C" int resogun_hdr(void); // resogun_settings.cpp: settings.ini hdr
-extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (60, 90, 120, 180)
+extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (30, 60, 90, 120, 180)
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 
@@ -39,11 +39,13 @@ public:
     // vertices sees stale data; Relaxed costs no measurable frame rate.
     u32 GetReadbacksMode() { static const auto value = u32(Number("RESOGUN_READBACKS", GpuReadbacksMode::Relaxed)); return value; }
     // resogun: the vblank runs at settings.ini frame_rate, read at each call (the Display
-    // Settings panel changes it): the game waits for one vblank a frame. RESOGUN_VBLANK_HZ
-    // fixes it (measurements).
+    // Settings panel changes it): the game waits for one vblank a frame. At 30 it stays 60: an
+    // engine target of 30 makes the game set a flip rate of 1 (a flip every second vblank), as
+    // the PS4's 30 FPS games do, so a 30 Hz vblank ran it at 15. RESOGUN_VBLANK_HZ fixes it
+    // (measurements).
     u32 GetVblankFrequency() {
         static const long fixed = Number("RESOGUN_VBLANK_HZ", -1);
-        return fixed > 0 ? u32(fixed) : u32(resogun_frame_rate());
+        return fixed > 0 ? u32(fixed) : u32(std::max(resogun_frame_rate(), 60));
     }
     // The vblank period. A display within 0.5 Hz of the vblank rate (a 59.95 Hz panel at the
     // default 60) sets it exactly: at 60.00 Hz the game made 0.05 frames a second more than the

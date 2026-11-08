@@ -457,7 +457,8 @@ DisplayRowText DisplayRowAt(int row) {
                      " Hz: runs at " + std::to_string(runs) + ")";
         }
         return {"Max FPS", value,
-                "The game's frame rate, at normal game speed: 60 is the PS4's. Applies at once. It is held "
+                "The game's frame rate, at normal game speed: 60 is the PS4's, 30 for PCs that cannot hold it. "
+                "Applies at once. It is held "
                 "to what the display refreshes at, and the PC must keep up with it: when it cannot, the "
                 "game runs slower instead of skipping frames."};
     }
