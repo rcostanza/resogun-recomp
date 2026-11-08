@@ -1,4 +1,4 @@
-/* The 21:9 / 32:9 widening (src/runtime_game.c): which render targets widen, and the stubs that
+/* The 4:3 / 21:9 / 32:9 resizing (src/runtime_game.c): which render targets widen, and the stubs that
  * runtime_game_widen puts in front of the engine's create functions, run on stand-ins with the
  * same prologues in an image-sized RWX buffer. */
 #include <assert.h>
@@ -64,6 +64,11 @@ int main(void) {
     assert(runtime_game_wide_width(NULL, 1920, 1080, 7680) == 3840); /* 32:9 */
     /* 3440x1440 (5168): widths stay even. */
     assert(runtime_game_wide_width("x", 960, 540, 5168) == 1292);
+    /* 4:3 (2880): narrowed by 3/4, the checkerboard to 1440x2160. */
+    assert(runtime_game_wide_width("mrt_albedo", 1920, 1080, 2880) == 1440);
+    assert(runtime_game_wide_width("mrt_albedo", 1920, 2160, 2880) == 1440);
+    assert(runtime_game_wide_width("ssao_occlusion", 960, 540, 2880) == 720);
+    assert(runtime_game_wide_width("menu_slide_8", 1728, 972, 2880) == 1728);
 
     const size_t size = 0xa5d200;
     unsigned char *image = runtime_low_map(size, 0);
@@ -104,6 +109,31 @@ int main(void) {
     assert(close_to(camera(NULL, view, menu, fov, 20, 300, 1.0f), fov + 4.43215f));
     float ortho[16] = {1 / aspect, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -1, 1};
     assert(close_to(camera(NULL, view, ortho, 1.5708f, 1, 2, aspect), 1.5708f + 1.0f));
+
+    /* 4:3 on a second image: the same camera at 1440x1080 (aspect 4/3, m5 sqrt(1+a)/tan(fov/2))
+     * gets 16:9's horizontal scale instead, so it shows 16:9's width and more above and below:
+     * m0 = 4.02369 * 9/16 and m5 = m0 * 4/3. */
+    unsigned char *narrow = runtime_low_map(size, 0);
+    assert(narrow);
+    memset(narrow, 0xcc, size);
+    memcpy(narrow + 0xa5d120, table, sizeof table);
+    stand_in(narrow + 0x476aa0, 0x28, 0xc8);
+    stand_in(narrow + 0x478840, 0x18, 0xd0);
+    stand_in(narrow + 0x478910, 0x18, 0xd0);
+    camera_stand_in(narrow + 0x420bd0);
+    assert(runtime_game_widen(narrow, 2880));
+    sizes = (const uint32_t *)(narrow + 0xa5d120);
+    assert(sizes[0] == 1440 && sizes[2] == 2880);
+    assert(((CreateTarget)(narrow + 0x476aa0))(NULL, "mrt_albedo", 0xfac00a, 1920, 1080, NULL) == 1440);
+    assert(((CreateDepth)(narrow + 0x478910))(NULL, "mrt_z", 1920, 2160, 1, NULL) == 1440);
+    const float a43 = 4.0f / 3.0f, m5_43 = sqrtf(1.0f + a43) / tanf(fov * 0.5f), m5_out = 4.02369f * 0.75f;
+    float menu43[16] = {m5_43 / a43, 0, 0, 0, 0, m5_43, 0, 0, 0, 0, 1.07143f, 1, 0, 0, -21.42857f, 0};
+    const float fov43 = 2.0f * atanf(tanf(fov * 0.5f) * m5_43 / m5_out);
+    assert(close_to(((SetCamera)(narrow + 0x420bd0))(NULL, view, menu43, fov, 20, 300, a43), fov43 + m5_out));
+    /* The screen's orthographic camera (x +-4/3, y +-1) zooms out to 16:9's width: m5 1 -> 0.75. */
+    float ortho43[16] = {0.75f, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -1, 1};
+    assert(close_to(((SetCamera)(narrow + 0x420bd0))(NULL, view, ortho43, 1.5708f, 1, 2, a43), 1.5708f + 0.75f));
+    assert(ortho43[5] == 1.0f);
     puts("wide: ok");
     return 0;
 }

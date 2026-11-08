@@ -77,24 +77,25 @@ void runtime_game_frame_rate(void) {
     printf("Frame rate: %d FPS (settings.ini frame_rate; engine target %.2f)\n",rate,(double)want);
 }
 
-/* A 21:9 or 32:9 output (eboot 01.10). The engine sizes its display buffers from a table at
+/* A 4:3, 21:9 or 32:9 output (eboot 01.10). The engine sizes its display buffers from a table at
  * 0xa5d120 (1920x1080 on PS4, 3840x2160 on PS4 Pro) and takes its aspect ratio from the video
- * out's size (emulator_settings.h, resogun_width_4k), and its camera then shows more to the sides.
+ * out's size (emulator_settings.h, resogun_width_4k).
  * Its render scripts create the scene targets with fixed sizes (mrt_albedo 1920x1080 or 1920x2160
  * checkerboard, SSAO at half, menu_overlay for the pause menu...) through 0x476aa0 (render targets:
  * this, name, format, width, height, options) and 0x478840 and 0x478910 (depth buffers: this,
  * name, width, height, ...); each starts with a jmp to a stub that widens the size before the
- * function's own prologue runs. The main menu's panels (menu_slide_*, dummy_depth*) are drawn on
+ * function's own prologue runs (narrows it, for 4:3). The main menu's panels (menu_slide_*, dummy_depth*) are drawn on
  * 3D cards and keep their size.
  * The engine's perspective takes a vertical half-angle tan(fov/2)/sqrt(1+aspect) (measured: the
  * main menu's and the gameplay camera's matrices at 16:9, 21:9 and 32:9), so a wider picture would
  * also see less above and below: 10% at 21:9, 28% at 32:9, with the HUD and the menus, drawn
  * in 3D before the camera, pushed past the top and bottom. Every camera goes through 0x420bd0
  * (this, view, projection, fov, near, far, aspect) with its projection matrix; for the screen's
- * cameras (the aspect of the picture) a copy with the 16:9 vertical scale is passed instead, and a
- * fov that gives it, so the picture is the PS4's with more at the sides. */
+ * cameras (the aspect of the picture) a copy with 16:9's vertical scale is passed instead, and a
+ * fov that gives it, so the picture is the PS4's with more at the sides; at 4:3, 16:9's
+ * horizontal scale, the PS4's with more above and below. */
 uint32_t runtime_game_wide_width(const char *name, uint32_t width, uint32_t height, uint32_t width_4k) {
-    if (width_4k<=3840 || !height) return width;
+    if (width_4k==3840 || !width_4k || !height) return width;
     if (name && (!strncmp(name,"menu_slide",10) || !strncmp(name,"dummy_depth",11))) return width;
     if ((uint64_t)width*9!=(uint64_t)height*16 && (uint64_t)width*9!=(uint64_t)height*8) return width;
     uint32_t wide=(uint32_t)(((uint64_t)width*width_4k+3839)/3840);
@@ -151,9 +152,25 @@ static ABI void wide_camera(float *xmm, uint64_t *regs) {
     enum { RDX=6 };
     const float aspect=xmm[12], wide=(float)wide_4k/2160.0f;
     const float *m=(const float *)regs[RDX];
+    if (!m || fabsf(aspect-wide)>wide*0.001f) return;
+    /* The screen's orthographic cameras (w = 1; x within +-aspect, y +-1: menus, backdrops) show
+     * more at the sides when wider; narrower, they zoom out to 16:9's width, as the pause menu's
+     * layout needs (the menus then keep 16:9 with dark bands above and below). */
+    if (m[11]==0.0f && m[15]==1.0f) {
+        const float fit=aspect*9.0f/16.0f;
+        if (fit>=1.0f) return;
+        memcpy(wide_projection,m,sizeof(wide_projection));
+        wide_projection[0]*=fit;
+        wide_projection[5]*=fit;
+        regs[RDX]=(uint64_t)(uintptr_t)wide_projection;
+        return;
+    }
     /* A perspective (w = z) for the picture's shape: shadow, cube and card cameras differ. */
-    if (!m || fabsf(aspect-wide)>wide*0.001f || m[11]!=1.0f || m[15]!=0.0f) return;
-    const float scale=sqrtf((1.0f+16.0f/9.0f)/(1.0f+aspect));
+    if (m[11]!=1.0f || m[15]!=0.0f) return;
+    /* Wider than 16:9 keeps its height (more at the sides), narrower its width (more above and
+     * below): the smaller zoom keeps both of 16:9's extents in view, the HUD included. */
+    const float tall=sqrtf((1.0f+16.0f/9.0f)/(1.0f+aspect)), across=tall*aspect*9.0f/16.0f;
+    const float scale=fminf(tall,across);
     memcpy(wide_projection,m,sizeof(wide_projection));
     wide_projection[0]*=scale;
     wide_projection[5]*=scale;
@@ -206,6 +223,6 @@ int runtime_game_widen(unsigned char *image, uint32_t width_4k) {
     p=wide_hook(image,p,0x478840,WIDE_DEPTH);
     p=wide_hook(image,p,0x478910,WIDE_DEPTH);
     wide_camera_hook(image,p);
-    printf("Wide: the game's picture is %ux2160 (%ux1080 in 1080p mode), its scene widened to match\n",width_4k,width_4k/2);
+    printf("Wide: the game's picture is %ux2160 (%ux1080 in 1080p mode), its scene resized to match\n",width_4k,width_4k/2);
     return 1;
 }

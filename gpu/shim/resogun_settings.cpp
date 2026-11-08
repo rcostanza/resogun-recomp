@@ -60,7 +60,7 @@ void Set(Values& v, const std::string& key, const std::string& value) {
             if (value == AspectRatioKeys[r]) ratio = r;
         }
         if (!value.empty() && value != AspectRatioKeys[ratio]) {
-            std::printf("Settings: aspect_ratio=%s is not 16:9, 21:9 or 32:9; using 16:9\n", value.c_str());
+            std::printf("Settings: aspect_ratio=%s is not 4:3, 16:9, 21:9 or 32:9; using 16:9\n", value.c_str());
         }
         v.startup_aspect_ratio = v.aspect_ratio = ratio;
     } else if (key == "skip_intro") {

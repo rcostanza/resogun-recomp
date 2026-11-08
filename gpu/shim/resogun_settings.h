@@ -35,15 +35,15 @@ inline int ParseAudioChannels(std::string_view value) {
 enum RenderResolution : int { Render1080p = 0, Render4k, RenderResolutionCount };
 inline constexpr std::string_view RenderResolutionKeys[RenderResolutionCount] = {"1080p", "4k"};
 
-/// The game's display width at 2160 lines for an output of w x h: 3840 (16:9) for a 16:9 or
-/// narrower output (within 1%: 1366x768 is 16:9), wider up to 7680 (32:9), in steps of 16 so the
+/// The game's display width at 2160 lines for an output of w x h: 3840 (16:9) for a 16:9 output
+/// (within 1%: 1366x768 is 16:9), else from 2880 (4:3) to 7680 (32:9), in steps of 16 so the
 /// 1080p row and the checkerboard scene (both half) stay whole: 2560x1080 gives 5120, 3440x1440
-/// 5168. The engine is widened to it at start (src/runtime_game.c runtime_game_widen).
+/// 5168. The engine is resized to it at start (src/runtime_game.c runtime_game_widen).
 inline int WideWidth4k(int w, int h) {
     if (w <= 0 || h <= 0) return 3840;
-    const double aspect = std::clamp(double(w) / h, 16.0 / 9.0, 32.0 / 9.0);
+    const double aspect = std::clamp(double(w) / h, 4.0 / 3.0, 32.0 / 9.0);
     const int width = int(2160.0 * aspect / 16.0 + 0.5) * 16;
-    return width <= 3840 * 101 / 100 ? 3840 : width;
+    return std::abs(width - 3840) <= 3840 / 100 ? 3840 : width;
 }
 
 /// "21:9" and the like for a size (within 3%: 2560x1080 and 3440x1440 are 21:9), else "2.10:1".
@@ -63,10 +63,10 @@ inline std::string AspectLabel(int w, int h) {
 }
 
 /// The picture's shape (key aspect_ratio, RESOGUN_ASPECT_RATIO): 16:9 (the PS4's, the default),
-/// 21:9 or 32:9. A window takes sizes of that shape; the fullscreen modes pick one from the screen.
-enum AspectRatio : int { Aspect16x9 = 0, Aspect21x9, Aspect32x9, AspectRatioCount };
-inline constexpr std::string_view AspectRatioKeys[AspectRatioCount] = {"16:9", "21:9", "32:9"};
-inline constexpr double AspectRatioValues[AspectRatioCount] = {16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0};
+/// 4:3, 21:9 or 32:9. A window takes sizes of that shape; the fullscreen modes pick one from the screen.
+enum AspectRatio : int { Aspect4x3, Aspect16x9, Aspect21x9, Aspect32x9, AspectRatioCount };
+inline constexpr std::string_view AspectRatioKeys[AspectRatioCount] = {"4:3", "16:9", "21:9", "32:9"};
+inline constexpr double AspectRatioValues[AspectRatioCount] = {4.0 / 3.0, 16.0 / 9.0, 21.0 / 9.0, 32.0 / 9.0};
 
 /// The AspectRatio a size is (as AspectLabel names it: 2560x1080 and 3440x1440 are 21:9), -1 none.
 inline int AspectRatioOf(int w, int h) {
