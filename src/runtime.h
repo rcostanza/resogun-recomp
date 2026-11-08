@@ -109,8 +109,6 @@ typedef struct { const char *name; void *function; } RuntimeExport;
 const char *runtime_symbol(const char *nid);
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *nid);
 uintptr_t runtime_kernel_resolve(const char *name);
-/* param.sfo ATTRIBUTE of the title (sceKernelGetCpumode). */
-void runtime_kernel_set_psf_attributes(uint32_t attributes);
 void runtime_kernel_set_neo_mode(int enabled);
 /* 1 in PS4 Pro mode: set before the guest runs, so the direct memory pool can size itself from it. */
 int runtime_kernel_neo_mode(void);

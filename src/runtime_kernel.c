@@ -226,10 +226,6 @@ static int neo;
 void runtime_kernel_set_neo_mode(int enabled) { neo=enabled!=0; }
 int runtime_kernel_neo_mode(void) { return neo; }
 static ABI int32_t neo_mode(void) { return neo; }
-/* param.sfo ATTRIBUTE (loader.c). sceKernelGetCpumode: 2 when the title asks for six and seven
- * CPUs (bits 15 and 16), 5 for seven only, else 0 (shadPS4 process.cpp). */
-static uint32_t psf_attributes;
-void runtime_kernel_set_psf_attributes(uint32_t attributes) { psf_attributes=attributes; }
 /* libc.prx's heap asks where the heap trace tables live (as shadPS4: an empty id mask and a
  * state table whose first entry is set); nothing reads them back on the host. */
 typedef struct { uint64_t size; uint32_t flags, get_segment_info; uint64_t *mspace_atomic_id_mask, *mstate_table; } HeapTraceInfo;
