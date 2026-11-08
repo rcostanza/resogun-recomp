@@ -324,15 +324,37 @@ static void test_pad_speaker_attenuated(void) {
     printf("Pad speaker attenuation passed!\n");
 }
 
+#ifdef _WIN32
+/* Whether WASAPI lists a playback device: the backend tests open real streams, and CI's
+   Windows runners have no audio output. */
+static int has_playback_device(void) {
+    SDL_SetHintWithPriority(SDL_HINT_AUDIO_DRIVER, "wasapi", SDL_HINT_OVERRIDE);
+    if (!SDL_InitSubSystem(SDL_INIT_AUDIO)) return 0;
+    int count = 0;
+    SDL_AudioDeviceID *devices = SDL_GetAudioPlaybackDevices(&count);
+    SDL_free(devices);
+    SDL_QuitSubSystem(SDL_INIT_AUDIO);
+    SDL_ResetHint(SDL_HINT_AUDIO_DRIVER);
+    return count > 0;
+}
+#endif
+
 int main(void) {
+#ifdef _WIN32
+    const int devices = has_playback_device();
+#endif
     test_lifecycle();
     test_invalid_parameters();
     test_multiple_ports();
 #ifdef _WIN32
-    test_wasapi_fallback();
-    test_env_override_prevents_fallback();
-    test_secondary_port_failure_leaves_active_stream_intact();
-    test_wasapi_and_directsound_both_fail_timer_sink();
+    if (devices) {
+        test_wasapi_fallback();
+        test_env_override_prevents_fallback();
+        test_secondary_port_failure_leaves_active_stream_intact();
+        test_wasapi_and_directsound_both_fail_timer_sink();
+    } else {
+        printf("No playback device: WASAPI/DirectSound backend tests skipped\n");
+    }
 #endif
     test_complete_failure_timer_sink();
     test_volume_while_feeding();

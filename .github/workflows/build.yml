@@ -57,8 +57,23 @@ jobs:
           path: out/ffmpeg
           key: ffmpeg-${{ runner.os }}-${{ hashFiles('tools/build_ffmpeg.sh') }}
 
+      # A crashing test exits instead of waiting on a Windows Error Reporting dialog.
+      - name: No crash dialogs
+        shell: pwsh
+        run: |
+          $key = 'HKCU:\Software\Microsoft\Windows\Windows Error Reporting'
+          New-Item -Path $key -Force | Out-Null
+          Set-ItemProperty -Path $key -Name DontShowUI -Value 1 -Type DWord
+
+      # A hung test still fails here instead of stalling the job.
       - name: Build and run the runtime tests
+        timeout-minutes: 60
         run: bash build.sh --test
+
+      # The GPU tests write to out/<test>.log: the end of each, so a hang shows where it stopped.
+      - name: Test logs (failed run)
+        if: failure()
+        run: for f in out/*-test.log; do [[ -f $f ]] && { echo "== $f"; tail -n 15 "$f"; }; done; true
 
       - name: Python tests
         run: cd tests && python -m unittest discover -p "test_*.py"
@@ -117,7 +132,12 @@ jobs:
           key: ffmpeg-${{ runner.os }}-${{ hashFiles('tools/build_ffmpeg.sh') }}
 
       - name: Build and run the runtime tests
+        timeout-minutes: 60
         run: bash build.sh --test
+
+      - name: Test logs (failed run)
+        if: failure()
+        run: for f in out/*-test.log; do [[ -f $f ]] && { echo "== $f"; tail -n 15 "$f"; }; done; true
 
       - name: Every compile error (failed build)
         if: failure()
