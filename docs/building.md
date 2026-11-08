@@ -170,9 +170,13 @@ Pushing a tag `v*` runs `.github/workflows/build.yml` (so do pull requests and a
 Actions tab; pushes to branches do not): on `windows-latest`, the build, both test suites and both
 packages (with the pinned embeddable Python); the `linux` and `linux-smoke` jobs do the same for Linux
 on `ubuntu-24.04`. The packages are the run's artifacts (Actions tab, kept 90 days). A tag run that
-passes also publishes the Windows zip and the Linux tarball as a GitHub release named after the tag:
+passes also publishes the Windows zip and the Linux tarball as a GitHub release named after the tag.
+The release's text is the tag's section of `CHANGELOG.md` (`## v0.4` up to the next `## `), then
+the install instructions. Write the section first: a tag without one fails the `notes` job at once
+and does not publish. `python tools/release_notes.py v0.4` prints what the release will say.
 
 ```bash
+python tools/release_notes.py v0.1.0   # the section is there
 git tag -a v0.1.0 -m "v0.1.0"
 git push origin v0.1.0
 ```
