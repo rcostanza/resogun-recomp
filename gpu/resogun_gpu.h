@@ -63,11 +63,11 @@ int resogun_hdr(void);
 /* 1 when settings.ini skip_intro (RESOGUN_SKIP_INTRO, default on) is on: the game starts without
  * its start-up logos and notices (-nosplash). Valid once resogun_gpu_init returned. */
 int resogun_skip_intro(void);
-/* settings.ini frame_rate (RESOGUN_FRAME_RATE): 30, 60, 90, 120 or 180; the Display Settings panel
+/* settings.ini frame_rate (RESOGUN_FRAME_RATE): 30, 60, 90, 120, 144 or 180; the Display Settings panel
  * changes it while the game runs. The PS4 vblank runs at it and the engine's target frame rate is set to
  * match at each flip (runtime_game.c). Valid once resogun_gpu_init returned; any thread. */
 int resogun_frame_rate(void);
-/* Sets frame_rate (one of 30, 60, 90, 120, 180) until the next start; any thread. */
+/* Sets frame_rate (one of 30, 60, 90, 120, 144, 180) until the next start; any thread. */
 void resogun_set_frame_rate(int rate);
 /* sceCommonDialogInitialize ran (runtime_services.c): the upstream dialog libraries check it. */
 void resogun_gpu_common_dialog_initialized(void);

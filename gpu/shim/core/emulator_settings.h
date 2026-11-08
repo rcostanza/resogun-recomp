@@ -14,7 +14,7 @@ extern "C" int resogun_render_4k(void); // resogun_settings.cpp: render_resoluti
 extern "C" int resogun_width_4k(void);  // resogun_settings.cpp: the display width at 2160 lines
 inline bool ResogunRender4k() { return resogun_render_4k() != 0; }
 extern "C" int resogun_hdr(void); // resogun_settings.cpp: settings.ini hdr
-extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (30, 60, 90, 120, 180)
+extern "C" int resogun_frame_rate(void); // resogun_settings.cpp: frame_rate (30, 60, 90, 120, 144, 180)
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 

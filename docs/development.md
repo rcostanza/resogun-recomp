@@ -86,7 +86,7 @@ Resogun's game logic advances once per frame, by a step its frame clock fixes: t
 constant 59.94 and allows no frame skip, so the game's speed is the rate at which it flips. Raising
 the PS4 vblank alone (shadPS4's approach) runs the game faster, not smoother.
 
-`frame_rate` (30, 60, 90, 120 or 180) sets both. `ResogunSettings::EffectiveFrameRate()` lowers it to what the
+`frame_rate` (30, 60, 90, 120, 144 or 180) sets both. `ResogunSettings::EffectiveFrameRate()` lowers it to what the
 display refreshes at, unless VSync is off with tearing allowed; the video out's vblank follows it
 (`GetVblankFrequency`, live), and at each flip `runtime_game_frame_rate()` (`src/runtime_game.c`)
 calls the engine's own `set_fps(rate x 0.999)` through the frame clock's vtable (the global at image

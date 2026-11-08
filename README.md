@@ -12,7 +12,7 @@ This requires you to provide a decrypted dump of your own copy of the game. Only
 
 ## Features
 
-- **30, 60, 90, 120 or 180 FPS.** Higher framerates maybe possible in the future; 30 is for lower-powered PCs.
+- **30, 60, 90, 120, 144 or 180 FPS.** Higher framerates maybe possible in the future; 30 is for lower-powered PCs.
   - Note: if the game fails to reach the set FPS cap, it will run slower. So choose a cap that your device can reach.
 - **4K support** (not native, the game's own checkerboard mode) or 1080p.
 - **Aspect ratios (16:9, 4:3, 21:9 and 32:9):** ultrawide shows more of the level to the sides, 4:3
@@ -79,7 +79,7 @@ Resogun's add-ons (the extra ships and skins) carry no data of their own: the ga
   that ratio; applied a second after you stop changing it) and monitor. The fullscreen modes pick their
   size from the screen and the aspect ratio, with black bars when the screen is of another shape;
 - VSync, and tearing with VSync off (the least input delay);
-- frame rate: 30, 60, 90, 120 or 180 (30 for PCs that cannot hold 60), held to what your display refreshes at (180 on a 120 Hz display runs at 120) unless VSync is off with tearing allowed;
+- frame rate: 30, 60, 90, 120, 144 or 180 (30 for PCs that cannot hold 60), held to what your display refreshes at (180 on a 120 Hz display runs at 120) unless VSync is off with tearing allowed;
 - render resolution (4K or 1080p, at the next start);
 - sharpening (AMD FSR 1 RCAS, on by default), applied at once; **F9** also switches it over the game, to compare;
 - HDR, the game's own HDR output on an HDR display (at the next start; on Windows, turn on **Use HDR** in Display settings first).
