@@ -5,7 +5,9 @@
 name: build
 
 on:
+  # Releases only: pushes to branches do not build.
   push:
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 

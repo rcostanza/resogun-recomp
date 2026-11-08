@@ -166,11 +166,11 @@ screen the player runs `1-capture.bat`, `2-optimizations-off.bat` and `3-reload.
 
 ## 6. CI and releases
 
-Every push and pull request runs `.github/workflows/build.yml`: on `windows-latest`, the build, both
-test suites and both packages (with the pinned embeddable Python); the `linux` and `linux-smoke` jobs
-do the same for Linux on `ubuntu-24.04`. The packages are the run's artifacts (Actions tab, kept 90
-days). Pushing an annotated tag `v*` also publishes the Windows zip and the Linux tarball as a GitHub
-release named after the tag:
+Pushing a tag `v*` runs `.github/workflows/build.yml` (so do pull requests and a manual run from the
+Actions tab; pushes to branches do not): on `windows-latest`, the build, both test suites and both
+packages (with the pinned embeddable Python); the `linux` and `linux-smoke` jobs do the same for Linux
+on `ubuntu-24.04`. The packages are the run's artifacts (Actions tab, kept 90 days). A tag run that
+passes also publishes the Windows zip and the Linux tarball as a GitHub release named after the tag:
 
 ```bash
 git tag -a v0.1.0 -m "v0.1.0"
