@@ -9,7 +9,7 @@
 // With arguments it installs from the command line:
 //
 //     resogun-setup.exe --game <dump or eboot.bin> [--save <folder>] [--copy-saves]
-//                           [--dlc <folder>|--no-dlc] [--skip-intro|--play-intro]
+//                           [--dlc <folder>|--no-dlc] [--skip-intro|--play-intro] [--progress]
 //                           [--shortcut <folder>|desktop]
 
 #include "setup.h"
@@ -21,6 +21,7 @@
 #include <shobjidl.h>
 
 #include <memory>
+#include <cwchar>
 #include <string>
 #include <thread>
 #include <vector>
@@ -79,7 +80,7 @@ private:
 
 constexpr wchar_t kUsage[] =
     L"usage: resogun-setup.exe --game <dump or eboot.bin> [--save <folder>] [--copy-saves]\n"
-    L"                             [--dlc <folder>|--no-dlc] [--skip-intro|--play-intro]\n"
+    L"                             [--dlc <folder>|--no-dlc] [--skip-intro|--play-intro] [--progress]\n"
     L"                             [--shortcut <folder>|desktop]\n"
     L"  --game        the decrypted game dump (eboot.bin, sce_module, sce_sys, stream.dat); only ever read\n"
     L"  --save        where your saves go (default: the one paths.ini names, else save\\ here)\n"
@@ -89,13 +90,14 @@ constexpr wchar_t kUsage[] =
     L"  --skip-intro, --play-intro\n"
     L"                skip the start-up logos and notices, or show them again\n"
     L"                (settings.ini skip_intro; default: leave it as it is)\n"
+    L"  --progress    also print \"progress <0 to 1> <step>\" lines (for RecompLauncher)\n"
     L"  --shortcut    also write the game's shortcut into this folder, or onto the Desktop\n"
     L"Sets up the folder this exe is in. With no arguments, opens the setup window.";
 
 int run_cli(const std::vector<std::wstring>& args) {
     Console con;
     std::wstring game, save, shortcut, dlc;
-    bool copy_saves = false, no_dlc = false;
+    bool copy_saves = false, no_dlc = false, progress = false;
     std::optional<bool> skip_intro;
     for (size_t i = 0; i < args.size(); ++i) {
         const std::wstring& a = args[i];
@@ -112,6 +114,8 @@ int run_cli(const std::vector<std::wstring>& args) {
             skip_intro = a == L"--skip-intro";
         } else if (a == L"--no-dlc") {
             no_dlc = true;
+        } else if (a == L"--progress") {
+            progress = true;
         } else {
             con.err(a == L"--help" || a == L"-h" ? kUsage : std::wstring(kUsage) + L"\n\nunexpected: " + a);
             return 2;
@@ -131,6 +135,12 @@ int run_cli(const std::vector<std::wstring>& args) {
         if (copy_saves)
             opt.copy_saves_from = saves_to_move(opt.root, opt.save);
         opt.skip_intro = skip_intro;
+        if (progress)
+            opt.progress = [&](double done, const std::wstring& what) {
+                wchar_t fraction[16];
+                swprintf(fraction, 16, L"%.2f", done);
+                con.out(L"progress " + std::wstring(fraction) + L" " + what);
+            };
         fs::path exe = setup::install(opt, [&](const std::wstring& line) { con.out(line); });
         if (!shortcut.empty()) {
             fs::path lnk = (shortcut == L"desktop" ? setup::desktop_folder() : fs::path(shortcut)) / setup::kShortcutName;

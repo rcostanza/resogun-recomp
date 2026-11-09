@@ -26,6 +26,8 @@ struct Options {
     std::optional<std::filesystem::path> copy_saves_from; // the old save folder, whose saves go to `save`
     std::optional<bool> skip_intro; // settings.ini skip_intro to write; unset keeps what is there
     std::filesystem::path dlc; // optional: one more folder of DLC (e.g. shadPS4's addcont); empty for none
+    // Optional: called as each step starts, with how far along the install is (0 to 1) and the step.
+    std::function<void(double, const std::wstring&)> progress;
 };
 
 // The folders a release folder's paths.ini names.

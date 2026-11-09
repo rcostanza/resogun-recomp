@@ -1,0 +1,153 @@
+{
+  "$schema": "https://recomplauncher.com/schema/recomplauncher.json",
+  "format": 1,
+  "name": "Resogun (PS4) Recompiled",
+  "repo": "rcostanza/resogun-recomp",
+  "game": {
+    "kind": "folder",
+    "label": "The folder of your decrypted dump of Resogun for PS4 (CUSA00038, update 1.10): eboot.bin, sce_module, sce_sys, audio.pck and stream.dat.",
+    "check": { "file": "stream.dat" }
+  },
+  "prepare": {
+    "program": ["resogun-setup.exe", "resogun-setup"],
+    "args": ["--game", "{game}", "--save", "{install}/save", "--copy-saves", "--progress"],
+    "label": "The game, prepared from your dump",
+    "timeout": 600
+  },
+  "start": {
+    "program": ["resogun.exe", "resogun"]
+  },
+  "config": [
+    {
+      "id": "main",
+      "format": "ini",
+      "file": [
+        { "path": "{install}/save/settings.ini", "if": "{install}/save/settings.ini" },
+        { "path": "{install}/settings.ini" }
+      ]
+    }
+  ],
+  "saves": ["{install}/save/savedata", "{install}/save/trophies.dat", "{install}/save/settings.ini"],
+  "folders": {
+    "saves": [{ "path": "{install}/save" }],
+    "logs": [{ "path": "{install}/save/log" }]
+  },
+  "looks": { "graphics": "vulkan" },
+  "settings": [
+    {
+      "id": "display_mode", "label": "Window",
+      "help": "Borderless covers the screen at the desktop's resolution. Fullscreen takes the screen over. Windowed uses Window size.",
+      "choices": [
+        { "label": "Borderless", "set": { "display_mode": "borderless" } },
+        { "label": "Fullscreen", "set": { "display_mode": "fullscreen" } },
+        { "label": "Windowed", "set": { "display_mode": "windowed" } }
+      ],
+      "defaults": { "display_mode": "borderless" }
+    },
+    {
+      "id": "output_resolution", "label": "Window size",
+      "help": "The window's size in Windowed mode. With another aspect ratio it takes that ratio's size nearest in height.",
+      "choices": [
+        { "label": "1280 x 720", "set": { "output_resolution": "1280x720" } },
+        { "label": "1600 x 900", "set": { "output_resolution": "1600x900" } },
+        { "label": "1920 x 1080", "set": { "output_resolution": "1920x1080" } },
+        { "label": "2560 x 1440", "set": { "output_resolution": "2560x1440" } },
+        { "label": "3840 x 2160", "set": { "output_resolution": "3840x2160" } }
+      ],
+      "defaults": { "output_resolution": "1920x1080", "display_mode": "borderless" },
+      "when": { "display_mode": "windowed" }
+    },
+    {
+      "id": "aspect_ratio", "label": "Aspect ratio",
+      "help": "Ultrawide shows more of the level to the sides, 4:3 more above and below. Nothing is stretched; the menus stay 16:9.",
+      "choices": [
+        { "label": "16:9", "set": { "aspect_ratio": "16:9" } },
+        { "label": "21:9", "set": { "aspect_ratio": "21:9" } },
+        { "label": "32:9", "set": { "aspect_ratio": "32:9" } },
+        { "label": "4:3", "set": { "aspect_ratio": "4:3" } }
+      ],
+      "defaults": { "aspect_ratio": "16:9" }
+    },
+    {
+      "id": "frame_rate", "label": "Frame rate",
+      "help": "60 is the PS4's. The game speed follows the frames shown, so pick a rate your PC always holds: a late frame slows the game for that moment.",
+      "choices": [
+        { "label": "30", "set": { "frame_rate": "30" } },
+        { "label": "60", "set": { "frame_rate": "60" } },
+        { "label": "90", "set": { "frame_rate": "90" } },
+        { "label": "120", "set": { "frame_rate": "120" } },
+        { "label": "144", "set": { "frame_rate": "144" } },
+        { "label": "180", "set": { "frame_rate": "180" } }
+      ],
+      "defaults": { "frame_rate": "60" }
+    },
+    {
+      "id": "render_resolution", "label": "Render resolution",
+      "help": "4K is the PS4 Pro mode (checkerboard rendered). 1080p is the PS4's own and lighter on the graphics card.",
+      "choices": [
+        { "label": "4K", "set": { "render_resolution": "4k" } },
+        { "label": "1080p", "set": { "render_resolution": "1080p" } }
+      ],
+      "defaults": { "render_resolution": "4k" }
+    },
+    {
+      "id": "vsync", "label": "V-Sync",
+      "help": "On waits for the screen's refresh. Off shows the newest frame at each refresh, still without tearing.",
+      "choices": [
+        { "label": "On", "set": { "vsync": "1" } },
+        { "label": "Off", "set": { "vsync": "0" } }
+      ],
+      "defaults": { "vsync": "1" }
+    },
+    {
+      "id": "tearing", "label": "Allow tearing",
+      "help": "With V-Sync off: shows each frame at once, for the least input delay, with tearing.",
+      "choices": [
+        { "label": "Off", "set": { "tearing": "0" } },
+        { "label": "On", "set": { "tearing": "1" } }
+      ],
+      "defaults": { "tearing": "0", "vsync": "1" },
+      "when": { "vsync": "0" }
+    },
+    {
+      "id": "sharpening", "label": "Sharpening",
+      "help": "AMD FSR 1 RCAS for crisper edges without halos. F9 in the game switches it to compare.",
+      "choices": [
+        { "label": "On", "set": { "sharpening": "1" } },
+        { "label": "Off", "set": { "sharpening": "0" } }
+      ],
+      "defaults": { "sharpening": "1" }
+    },
+    {
+      "id": "hdr", "label": "HDR",
+      "help": "The game's own HDR10 output. Needs a display with HDR turned on.",
+      "choices": [
+        { "label": "Off", "set": { "hdr": "0" } },
+        { "label": "On", "set": { "hdr": "1" } }
+      ],
+      "defaults": { "hdr": "0" }
+    },
+    {
+      "id": "audio_channels", "label": "Speakers",
+      "choices": [
+        { "label": "Automatic", "set": { "audio_channels": "auto" } },
+        { "label": "Stereo", "set": { "audio_channels": "stereo" } },
+        { "label": "5.1", "set": { "audio_channels": "5.1" } },
+        { "label": "7.1", "set": { "audio_channels": "7.1" } }
+      ],
+      "defaults": { "audio_channels": "auto" }
+    },
+    {
+      "id": "skip_intro", "label": "Intro logos",
+      "help": "Skip starts straight in the main menu, past the logos and the title screen.",
+      "choices": [
+        { "label": "Skip them", "set": { "skip_intro": "1" } },
+        { "label": "Show them", "set": { "skip_intro": "0" } }
+      ],
+      "defaults": { "skip_intro": "1" }
+    }
+  ],
+  "actions": [
+    { "id": "saves", "label": "Saves", "help": "Your saves, trophies, settings and resogun.log.", "open": "saves" }
+  ]
+}

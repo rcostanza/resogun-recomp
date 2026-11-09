@@ -18,6 +18,7 @@ start resogun.exe or the desktop shortcut it offers.
     libs/           the DLLs the game needs (from MSYS2 CLANG64) and libs.manifest, which names them:
                     a private assembly, which resogun.exe's manifest depends on (res/libs.manifest)
     release.txt     this release; the setup stamps the image it prepares with it (src/launcher.c)
+    recomplauncher.json  how RecompLauncher (recomplauncher.com) sets up, starts and configures it
     README.txt, LICENSE.txt
     prepare/        run.py, scripts/ and settings.example.ini, run by the setup;
                     prepare/python/ holds Python for it when --python names the python.org
@@ -367,6 +368,8 @@ def main():
                                                        debug_note=DEBUG_NOTE if a.debug else '')
                                          .replace('\n', '\r\n').encode())
     ship(PORT / 'LICENSE', 'LICENSE.txt')
+    # RecompLauncher's profile (setup, start and settings), next to the exes as it expects.
+    ship(PORT / 'recomplauncher.json', 'recomplauncher.json')
     shipped += ['release.txt', 'README.txt']
     size = sum((out / name).stat().st_size for name in shipped)
     if LINUX:

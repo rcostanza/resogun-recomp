@@ -24,6 +24,7 @@ This requires you to provide a decrypted dump of your own copy of the game. Only
 - **Keyboard and any gamepad.** DualShock 4 and DualSense work as they are, Xbox-style pads by
   button position.
 - **Easy setup:** point the installer at your dump, and it can add a desktop shortcut (on Linux, an application menu entry).
+- **Works with [RecompLauncher](https://recomplauncher.com):** it installs and updates the game from these releases, sets it up from your dump and shows the settings on the game's page.
 
 ## Requirements
 
