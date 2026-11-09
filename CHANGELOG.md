@@ -5,6 +5,10 @@ Each release's section becomes the text of its GitHub release (`tools/release_no
 without one does not publish. Keep each entry on one line: GitHub shows a line break in release
 text as a break.
 
+## v0.5
+
+- Shaders that interpolate a flat-shaded input are handled as on the PS4's GPU instead of stopping the game (issue #1: a stop with exit code 23 when level 3 loaded after the level 2 boss). The game data corruption behind that crash is still being investigated.
+
 ## v0.4
 
 - Sharpening: AMD FSR 1 RCAS over the picture, for crisper edges without halos. On by default; a new Sharpening row in Display Settings (F10), and **F9** switches it on or off during play to compare. The game's own HUD and menus are sharpened along with the scene.

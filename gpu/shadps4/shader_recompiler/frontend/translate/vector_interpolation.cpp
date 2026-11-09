@@ -58,7 +58,7 @@ void Translator::V_INTERP_P1_F32(const GcnInst& inst) {
     }
     const u32 attr_index = inst.control.vintrp.attr;
     const auto& attr = runtime_info.hw.fs.inputs[attr_index];
-    if (attr.IsDefault()) {
+    if (attr.IsDefault() || attr.is_flat) {
         return;
     }
     // VDST = P10 * VSRC + P0
@@ -80,7 +80,14 @@ void Translator::V_INTERP_P2_F32(const GcnInst& inst) {
                ir.Imm32(DefaultValTable[attr.default_value][inst.control.vintrp.chan]));
         return;
     }
-    ASSERT(!attr.is_flat);
+    if (attr.is_flat) {
+        // resogun: a flat-shaded input (SPI_PS_INPUT_CNTL.FLAT_SHADE) holds P0 with zero deltas
+        // in the parameter cache, so P1/P2 interpolation gives the provoking vertex's value on
+        // hardware. An assertion here stopped a player's game in Mission 3's intro (issue #1).
+        interp.primary = Qualifier::Flat;
+        SetDst(inst.dst[0], ir.GetAttribute(attrib, inst.control.vintrp.chan));
+        return;
+    }
     if (!profile.needs_manual_interpolation) {
         interp = GetInterpolation(vgpr_to_interp[inst.src[0].code]);
         SetDst(inst.dst[0], ir.GetAttribute(attrib, inst.control.vintrp.chan));
