@@ -348,6 +348,9 @@ int run_asking(Asker& ask) {
     opt.save = save;
     opt.skip_intro = (skip == 0) == skipping;
     opt.dlc = dlc;
+    opt.confirm = [&](const std::wstring& warning) {
+        return ask.choose(warning, {L"Cancel", L"Continue"}) == 1; // the first, Cancel, is the default
+    };
     try {
         if (auto old = saves_to_move(opt.root, opt.save)) {
             int answer = ask.choose(L"Copy your saves to the new save folder?\n\nFrom: " + setup::text(*old) +

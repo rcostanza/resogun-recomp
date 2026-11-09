@@ -22,7 +22,14 @@
 namespace fs = std::filesystem;
 
 namespace setup {
+
 namespace {
+// For an eboot.bin that is not a verified build (scripts/prepare.py VERIFIED_BUILDS).
+constexpr wchar_t kUnverifiedWarning[] =
+    L"This dump's eboot.bin is not the version this release was tested with (the unmodified eboot.bin "
+    L"of Resogun CUSA00038, update 1.10). Patched files, such as DLC unlockers, and other versions are "
+    L"untested: the game may be unstable or crash.\n\nAll add-ons already show as owned without an "
+    L"unlocker.";
 
 // What run.py reads from the dump to prepare the image (IMAGE_INPUTS), and the title's param.sfo.
 constexpr const wchar_t* kGameFiles[] = {
@@ -625,14 +632,24 @@ fs::path install(const Options& opt, const Log& log) {
 #else
     setenv("PYTHONIOENCODING", "utf-8", 1);
 #endif
-    if (unsigned long code = run(command, prepare, log))
+    // Exit code 3: eboot.bin is not one of the builds scripts/prepare.py lists as verified, and nothing
+    // was prepared. The player is warned, and on going on it is prepared anyway (--any-build).
+    unsigned long code = run(command, prepare, log);
+    if (code == 3) {
+        log(L"warning: " + std::wstring(kUnverifiedWarning));
+        if (opt.confirm && !opt.confirm(std::wstring(kUnverifiedWarning) + L"\n\nContinue anyway?"))
+            fail(L"Setup stopped: the game was not prepared.");
+        command.push_back(L"--any-build");
+        code = run(command, prepare, log);
+    }
+    if (code)
         fail(L"Preparing the game failed (exit code " + std::to_wstring(code) + L"). The log says why.");
 
     // On a CPU without some instruction sets the game uses, the sites that use them are rewritten
     // (run.py's play does this at every start; here once).
     step(0.75, L"Checking this PC's CPU");
     std::wstring cpu;
-    unsigned long code = run({text(exe), L"--cpu-features"}, root, log, &cpu);
+    code = run({text(exe), L"--cpu-features"}, root, log, &cpu);
     if (code == 20)
         fail(L"This PC's CPU cannot run the game:\n" + cpu);
     if (code)

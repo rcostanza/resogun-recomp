@@ -26,6 +26,22 @@ MODULE_DIRS = ('sce_module',)
 FS_LOAD = bytes.fromhex('64488b042500000000')  # mov rax, fs:[0]
 MODULE_DEFERRED = 1  # module table flag: started on request, not at boot
 EH_FRAME_HDR = 0x6474e550  # PT_GNU_EH_FRAME
+# Dumps patched for a DLC unlocker import libSceAppContent from a 'dlcldr' module under other NIDs;
+# the code is unchanged, so the eboot's GOT slot tells which function each import is (eboot 01.10).
+# Without dlcldr.prx in sce_module the host's sceAppContent serves them.
+DLC_LOADER_LIBRARY = 'dlcldr'
+DLC_LOADER_SLOTS = {
+    0xd06238: 'sceAppContentAppParamGetInt',
+    0xd06240: 'sceAppContentGetAddcontInfo',
+    0xd063a8: 'sceAppContentTemporaryDataMount2',
+    0xd06b80: 'sceAppContentInitialize',
+}
+APP_CONTENT_NIDS = {
+    'sceAppContentAppParamGetInt': '99b82IKXpH4',
+    'sceAppContentGetAddcontInfo': 'm47juOmH0VE',
+    'sceAppContentTemporaryDataMount2': 'buYbeLOGWmA',
+    'sceAppContentInitialize': 'R9lA82OraNs',
+}
 
 
 def encode_id(value):
@@ -129,6 +145,22 @@ def deferred_modules(game, boot=DEFAULT_MODULES):
         if directory.is_dir():
             found += sorted(p.name for p in directory.iterdir() if p.suffix == '.prx' and p.name not in boot)
     return found
+
+
+def redirect_dlc_loader(names, relocs, image_size, served):
+    """Renames the eboot's unserved dlcldr imports to the libSceAppContent ones in the same GOT slot
+    (DLC_LOADER_SLOTS). served(index) tells whether a linked module exports the import. Returns
+    the number renamed."""
+    renamed = 0
+    for target, kind, index, _ in relocs:
+        if kind not in (1, 2) or target >= image_size or served(index):
+            continue
+        parts = names[index].split('#')
+        function = DLC_LOADER_SLOTS.get(target)
+        if len(parts) == 2 and parts[1] == DLC_LOADER_LIBRARY and function:
+            names[index] = f'{APP_CONTENT_NIDS[function]}#libSceAppContent'
+            renamed += 1
+    return renamed
 
 
 def patch_fs_loads(image, ph, base):
@@ -262,6 +294,10 @@ def link(game, out, module_names=DEFAULT_MODULES, deferred=None):
                           unwind=unwind_info(m, base, modsize)))
         base = (base + modsize + 65535) & ~65535
 
+    exported = {index for identity, index in identities.items() if identity in exports}
+    dlc_loader = redirect_dlc_loader(names, relocs, size, exported.__contains__)
+    if dlc_loader:
+        print(f'Linked: {dlc_loader} {DLC_LOADER_LIBRARY} imports served as libSceAppContent (DLC unlocker patch)')
     bindings, unresolved = [], []
     for identity, index in identities.items():
         found = exports.get(identity)

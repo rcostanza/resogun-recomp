@@ -466,9 +466,14 @@ void start_install() {
     }
     set_status(L"Installing...");
     set_busy(true);
-    std::thread([opt, wnd = ui.wnd] {
+    std::thread([opt, wnd = ui.wnd]() mutable {
         auto log = [wnd](const std::wstring& line) {
             PostMessageW(wnd, kMsgLog, 0, reinterpret_cast<LPARAM>(new std::wstring(line)));
+        };
+        // An eboot.bin that is not a verified build: a warning box over the setup window, from this
+        // thread (MessageBoxW runs its own message loop while the window waits).
+        opt.confirm = [wnd](const std::wstring& warning) {
+            return MessageBoxW(wnd, warning.c_str(), kTitle, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2) == IDYES;
         };
         try {
             fs::path exe = setup::install(opt, log);

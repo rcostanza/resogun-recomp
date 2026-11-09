@@ -3,7 +3,7 @@ import struct
 import unittest
 import tempfile
 from pathlib import Path
-from prepare import parse_self, inspect_libc, load_sfo, nid, prepare, read_self, read_sfo, sfo, write_report
+from prepare import UnverifiedBuild, VERIFIED_BUILDS, verified_build, parse_self, inspect_libc, load_sfo, nid, prepare, read_self, read_sfo, sfo, write_report
 
 
 def fixture():
@@ -146,6 +146,27 @@ class SelfTests(unittest.TestCase):
             sfo(b'')
         with self.assertRaisesRegex(ValueError, 'empty SELF'):
             parse_self(b'')
+
+
+class VerifiedBuildTests(unittest.TestCase):
+    def test_verified_eboot_names_its_version(self):
+        self.assertEqual(verified_build('c8de3071d96b57a4ccc9b94abaadbe68a133933b34f7396d4a00fb1c6c5a5612'), '01.10')
+
+    def test_other_eboot_is_refused_unless_any_build(self):
+        # A DLC-unlocker patched 01.10 (only its import tables differ) is still another file.
+        sha = 'bd7db3d10266ed32439227c29adb5c0cf13daf883bc5605a362a98f3d3e17309'
+        self.assertNotIn(sha, VERIFIED_BUILDS)
+        with self.assertRaisesRegex(UnverifiedBuild, 'not a build this release was verified with'):
+            verified_build(sha)
+        self.assertEqual(verified_build(sha, any_build=True), '')
+
+    def test_refused_before_anything_is_written(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            game = Path(tmp)
+            (game / 'eboot.bin').write_bytes(fixture())
+            with self.assertRaises(UnverifiedBuild):
+                prepare(game, game / 'out')
+            self.assertFalse((game / 'out').exists())
 
 
 if __name__ == '__main__':

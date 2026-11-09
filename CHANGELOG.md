@@ -5,6 +5,11 @@ Each release's section becomes the text of its GitHub release (`tools/release_no
 without one does not publish. Keep each entry on one line: GitHub shows a line break in release
 text as a break.
 
+## v0.6
+
+- Setup checks your eboot.bin against the unmodified update 1.10 this release was tested with. For a modified one (a DLC unlocker patch, for example) or another version, it warns that the game may be unstable or crash and asks before going on. All add-ons already show as owned without an unlocker.
+- Dumps whose eboot.bin was patched for a DLC unlocker (it imports from a `dlcldr` module) now start, instead of stopping at boot with exit code 20.
+
 ## v0.5
 
 - Shaders that interpolate a flat-shaded input are handled as on the PS4's GPU instead of stopping the game (issue #1: a stop with exit code 23 when level 3 loaded after the level 2 boss). The game data corruption behind that crash is still being investigated.

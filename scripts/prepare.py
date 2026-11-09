@@ -129,6 +129,30 @@ def read_sfo(path):
         return None
 
 
+# eboot.bin builds verified to play through (SHA-256 of the whole file, as dumped). Any other stops
+# prepare before anything is built, so the setup can warn first: a different build moves the code the
+# runner patches, and a modified one may not run. --any-build prepares it anyway (the setup passes it
+# once the player chooses to go on).
+VERIFIED_BUILDS = {
+    'c8de3071d96b57a4ccc9b94abaadbe68a133933b34f7396d4a00fb1c6c5a5612': '01.10',
+}
+EXIT_UNVERIFIED = 3  # the setup warns that eboot.bin is not a verified build, then may pass --any-build
+
+
+class UnverifiedBuild(Exception):
+    pass
+
+
+def verified_build(sha256, any_build=False):
+    """The version of a verified eboot.bin, '' for another one with any_build; else UnverifiedBuild."""
+    build = VERIFIED_BUILDS.get(sha256)
+    if build is None and not any_build:
+        raise UnverifiedBuild(f'eboot.bin (sha256 {sha256}) is not a build this release was verified with. '
+                              f'It needs the unmodified eboot.bin of Resogun CUSA00038 update '
+                              f'{", ".join(sorted(set(VERIFIED_BUILDS.values())))}.')
+    return build or ''
+
+
 def write_report(path, report):
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
@@ -171,8 +195,9 @@ def inspect_libc(path):
     return evidence
 
 
-def prepare(game, out):
+def prepare(game, out, any_build=False):
     source = read_self(game / 'eboot.bin')
+    build = verified_build(hashlib.sha256(source).hexdigest(), any_build)
     elf, header, ph, segments, missing = parse_self(source)
     loads = [p for p in ph if p['type'] in (1, 0x61000010)]
     def mapped(addr, size=8):
@@ -272,7 +297,7 @@ def prepare(game, out):
         f.write(image)
     (out / 'eboot.elf').write_bytes(elf)
     (out / 'entry.bin').write_bytes(image[:1024])
-    report = dict(source_sha256=hashlib.sha256(source).hexdigest(), source_bytes=len(source),
+    report = dict(source_sha256=hashlib.sha256(source).hexdigest(), verified_build=build, source_bytes=len(source),
                   sfo=sfo((game / 'sce_sys/param.sfo').read_bytes()), entry=hex(header[4]),
                   image_bytes=size, program_headers=ph, self_segments=segments,
                   unavailable_metadata_headers=missing, needed=[string(v) for t, v in dyn if t == 1],
@@ -307,11 +332,14 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('game', type=Path)
     parser.add_argument('--out', type=Path, default=Path(__file__).resolve().parent.parent / 'out')
+    parser.add_argument('--any-build', action='store_true', help='prepare an eboot.bin that is not a verified build')
     args = parser.parse_args()
     # The title is printed; a console or pipe in a legacy code page cannot encode every language.
     sys.stdout.reconfigure(errors='replace')
     try:
-        prepare(args.game, args.out)
+        prepare(args.game, args.out, args.any_build)
         content_profile(args.game, args.out)
+    except UnverifiedBuild as error:
+        parser.exit(EXIT_UNVERIFIED, f'prepare failed: {error}\n')
     except (ValueError, OSError, StopIteration, KeyError, IndexError) as error:
         parser.exit(1, f'prepare failed: {error}\n')

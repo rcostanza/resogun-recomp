@@ -1,6 +1,7 @@
 /* The game's version, logged first so a bug report's log tells which dump it came from: param.sfo's
- * TITLE_ID and APP_VER, and the eboot's SHA-256 that scripts/prepare.py records in analysis.json
- * beside the image. */
+ * TITLE_ID and APP_VER, and what scripts/prepare.py records in analysis.json beside the image: the
+ * eboot's SHA-256 and the verified build it is (VERIFIED_BUILDS; empty for one prepared with
+ * --any-build). */
 #include "runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -11,40 +12,38 @@
 #endif
 #include "gpu/resogun_gpu.h"
 
-/* eboot.bin builds the runner has been run with. */
-static const struct { const char *sha256, *version; } known_builds[]={
-    {"c8de3071d96b57a4ccc9b94abaadbe68a133933b34f7396d4a00fb1c6c5a5612","01.10"},
-};
-
-/* "source_sha256" from analysis.json in the folder of `image_path`. */
-static int eboot_sha256(const char *image_path, char *out) {
-    char path[4096];
-    const char *slash=strrchr(image_path,'/'), *back=strrchr(image_path,'\\');
-    if (back>slash) slash=back;
-    const int dir=slash ? (int)(slash-image_path)+1 : 0;
-    snprintf(path,sizeof(path),"%.*sanalysis.json",dir,image_path);
-    FILE *f=fopen(path,"rb");
-    if (!f) return 0;
-    char head[4096];
-    const size_t n=fread(head,1,sizeof(head)-1,f);
-    fclose(f);
-    head[n]=0;
-    const char *sha=strstr(head,"\"source_sha256\": \"");
-    if (!sha || strspn(sha+18,"0123456789abcdef")<64) return 0;
-    memcpy(out,sha+18,64); out[64]=0;
+/* The string value of "key" in analysis.json's head (it is written first), at most size-1 chars of
+ * [0-9a-z.]; 0 when absent. */
+static int report_string(const char *head, const char *key, char *out, size_t size) {
+    char pattern[64];
+    snprintf(pattern,sizeof(pattern),"\"%s\": \"",key);
+    const char *value=strstr(head,pattern);
+    if (!value) return 0;
+    value+=strlen(pattern);
+    const size_t n=strspn(value,"0123456789abcdefghijklmnopqrstuvwxyz.");
+    if (n>=size || value[n]!='"') return 0;
+    memcpy(out,value,n); out[n]=0;
     return 1;
 }
 
 void runtime_game_identify(const char *title_id, const char *app_version, const char *app0, const char *image_path) {
     (void)app0;
-    char sha[65]="";
-    const char *build=NULL;
-    if (eboot_sha256(image_path,sha))
-        for (size_t i=0;i<sizeof(known_builds)/sizeof(*known_builds);++i)
-            if (!strcmp(sha,known_builds[i].sha256)) build=known_builds[i].version;
+    char sha[65]="", build[16]="", path[4096], head[4096];
+    const char *slash=strrchr(image_path,'/'), *back=strrchr(image_path,'\\');
+    if (back>slash) slash=back;
+    const int dir=slash ? (int)(slash-image_path)+1 : 0;
+    snprintf(path,sizeof(path),"%.*sanalysis.json",dir,image_path);
+    FILE *f=fopen(path,"rb");
+    if (f) {
+        const size_t n=fread(head,1,sizeof(head)-1,f);
+        fclose(f);
+        head[n]=0;
+        if (!report_string(head,"source_sha256",sha,sizeof(sha)) || strlen(sha)!=64) sha[0]=0;
+        report_string(head,"verified_build",build,sizeof(build));
+    }
     printf("Game: %s version %s, eboot.bin sha256 %s (%s%s)\n",title_id[0] ? title_id : "?",
            app_version[0] ? app_version : "unknown",sha[0] ? sha : "unknown",
-           build ? "known build " : "a build the runner was not checked with",build ? build : "");
+           build[0] ? "verified build " : "not a verified build",build);
 }
 
 /* settings.ini frame_rate onto the engine's frame clock (eboot 01.10). The clock (a global at

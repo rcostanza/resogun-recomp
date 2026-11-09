@@ -78,12 +78,12 @@ def image_is_current(game, out):
     return all(not path.is_file() or path.stat().st_mtime < built for path in sources)
 
 
-def prepare(game, out, force=False):
+def prepare(game, out, force=False, any_build=False):
     if not force and image_is_current(game, out):
         print(f'Game image is current: {out / "boot-linked.bin"}', flush=True)
         return
     out.mkdir(parents=True, exist_ok=True)
-    run_script('prepare.py', game, '--out', out)
+    run_script('prepare.py', game, '--out', out, *(['--any-build'] if any_build else []))
     run_script('link.py', game, '--out', out)
 
 
@@ -150,6 +150,8 @@ def main():
     p.add_argument('--out', type=Path, default=PORT / 'out' / 'game', help='the game image (default: out/game)')
     p.add_argument('--dlc', type=Path, default=os.environ.get('RESOGUN_DLC_DIR') or None,
                    help="one more folder of DLC, next to the save's addcont (e.g. shadPS4's addcont)")
+    p.add_argument('--any-build', action='store_true',
+                   help='prepare an eboot.bin that is not a verified build (scripts/prepare.py VERIFIED_BUILDS)')
     a, extra = p.parse_known_args()
     if a.game is None:
         fail('Pass the decrypted game dump with --game DIR or set RESOGUN_GAME_DIR.')
@@ -157,7 +159,7 @@ def main():
     if not (game / 'eboot.bin').is_file():
         fail(f'No eboot.bin in {game} (pass --game or set RESOGUN_GAME_DIR).')
     out = a.out.resolve()
-    prepare(game, out, force=a.command == 'prepare')
+    prepare(game, out, force=a.command == 'prepare', any_build=a.any_build)
     if a.command == 'prepare':
         return 0
     exe = find_exe()

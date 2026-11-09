@@ -92,5 +92,20 @@ class FsLoadTests(unittest.TestCase):
         self.assertEqual(image[16], 0x65)
 
 
+class DlcLoaderTests(unittest.TestCase):
+    def test_unserved_dlcldr_imports_become_app_content_by_got_slot(self):
+        names = ['4qL3yyKEXoM#dlcldr', 'AAAAAAAAAAA#dlcldr', 'Ou3iL1abvng#libkernel', 'BBBBBBBBBBB#dlcldr']
+        relocs = [(0xd06238, 1, 0, 0), (0xd00000, 1, 1, 0), (0xd06240, 1, 2, 0), (0xd06b80, 1, 3, 0)]
+        renamed = link.redirect_dlc_loader(names, relocs, 0x1000000, lambda index: False)
+        self.assertEqual(renamed, 2)
+        self.assertEqual(names, ['99b82IKXpH4#libSceAppContent', 'AAAAAAAAAAA#dlcldr',
+                                 'Ou3iL1abvng#libkernel', 'R9lA82OraNs#libSceAppContent'])
+
+    def test_dlcldr_imports_a_module_exports_stay(self):
+        names = ['4qL3yyKEXoM#dlcldr']
+        self.assertEqual(link.redirect_dlc_loader(names, [(0xd06238, 1, 0, 0)], 0x1000000, lambda index: True), 0)
+        self.assertEqual(names, ['4qL3yyKEXoM#dlcldr'])
+
+
 if __name__ == '__main__':
     unittest.main()

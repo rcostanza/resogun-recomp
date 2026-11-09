@@ -28,6 +28,9 @@ struct Options {
     std::filesystem::path dlc; // optional: one more folder of DLC (e.g. shadPS4's addcont); empty for none
     // Optional: called as each step starts, with how far along the install is (0 to 1) and the step.
     std::function<void(double, const std::wstring&)> progress;
+    // Optional: asked, with a warning for the user, whether to go on with an eboot.bin that is not a
+    // verified build; true goes on. Unset: the warning is logged and the install goes on.
+    std::function<bool(const std::wstring&)> confirm;
 };
 
 // The folders a release folder's paths.ini names.
