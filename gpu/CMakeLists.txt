@@ -134,15 +134,16 @@ add_library(resogun_gpu STATIC ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOUR
     shadps4/core/libraries/videodec/video_utils.cpp)
 add_dependencies(resogun_gpu host_shaders)
 # The PS4 system UI overlay (save list, text entry, trophy notices): Dear ImGui
-# (third_party/imgui, MIT) with its Vulkan backend and an embedded font (third_party/fonts).
+# (third_party/imgui, MIT) with its Vulkan backend and embedded fonts (third_party/fonts).
 target_sources(resogun_gpu PRIVATE third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp third_party/imgui/imgui_widgets.cpp
     third_party/imgui/backends/imgui_impl_vulkan.cpp)
 target_include_directories(resogun_gpu PRIVATE third_party/imgui third_party/imgui/backends)
 target_compile_definitions(resogun_gpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
-    RESOGUN_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
+    RESOGUN_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf"
+    RESOGUN_EXIT_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/orbitron/Orbitron[wght].ttf")
 set_source_files_properties(shim/resogun_overlay.cpp PROPERTIES
-    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
+    OBJECT_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf;${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/orbitron/Orbitron[wght].ttf")
 target_include_directories(resogun_gpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/half/include)
 target_compile_definitions(resogun_gpu PRIVATE BOOST_ASIO_STANDALONE NDEBUG)
 target_compile_options(resogun_gpu PRIVATE -Wno-deprecated-declarations -Wno-missing-field-initializers)

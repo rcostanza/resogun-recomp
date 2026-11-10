@@ -368,6 +368,7 @@ def main():
                                                        debug_note=DEBUG_NOTE if a.debug else '')
                                          .replace('\n', '\r\n').encode())
     ship(PORT / 'LICENSE', 'LICENSE.txt')
+    ship(PORT / 'gpu/third_party/fonts/orbitron/OFL.txt', 'Orbitron-OFL.txt')
     # RecompLauncher's profile (setup, start and settings), next to the exes as it expects.
     ship(PORT / 'recomplauncher.json', 'recomplauncher.json')
     shipped += ['release.txt', 'README.txt']

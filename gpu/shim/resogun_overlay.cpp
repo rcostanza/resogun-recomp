@@ -52,6 +52,30 @@ asm(".section .rodata\n"
 extern "C" const unsigned char resogun_font_ttf[];
 extern "C" const unsigned char resogun_font_ttf_end[];
 
+#ifdef _WIN32
+asm(".section .rdata,\"dr\"\n"
+    ".balign 16\n"
+    ".global resogun_exit_font_ttf\n"
+    "resogun_exit_font_ttf:\n"
+    ".incbin \"" RESOGUN_EXIT_FONT_PATH "\"\n"
+    ".global resogun_exit_font_ttf_end\n"
+    "resogun_exit_font_ttf_end:\n"
+    ".text\n");
+#else
+asm(".section .rodata\n"
+    ".balign 16\n"
+    ".hidden resogun_exit_font_ttf\n"
+    ".global resogun_exit_font_ttf\n"
+    "resogun_exit_font_ttf:\n"
+    ".incbin \"" RESOGUN_EXIT_FONT_PATH "\"\n"
+    ".hidden resogun_exit_font_ttf_end\n"
+    ".global resogun_exit_font_ttf_end\n"
+    "resogun_exit_font_ttf_end:\n"
+    ".previous\n");
+#endif
+extern "C" const unsigned char resogun_exit_font_ttf[];
+extern "C" const unsigned char resogun_exit_font_ttf_end[];
+
 namespace ResogunOverlay {
 
 namespace {
@@ -59,6 +83,7 @@ namespace {
 std::mutex imgui_mutex; // the ImGui context: window thread (input) and present thread
 bool initialized = false;
 float base_scale = 1.0f;
+ImFont* exit_font = nullptr;
 
 namespace Ink {
 constexpr ImVec4 Rgb(int r, int g, int b, float a = 1.0f) { return ImVec4(r / 255.0f, g / 255.0f, b / 255.0f, a); }
@@ -531,7 +556,7 @@ void DisplaySettingsBox() {
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                      ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImFont* font = ImGui::GetFont();
+    ImFont* font = exit_font;
     const ImVec2 o = viewport->Pos, size = viewport->Size;
     const float right = o.x + size.x, bottom = o.y + size.y, line = std::max(1.0f, 2.0f * px);
     dl->AddRectFilled(o, ImVec2(right, bottom), PageInk::Shade);
@@ -542,8 +567,8 @@ void DisplaySettingsBox() {
     const float panel_h = pad * 2.0f + float(RowCount) * row_h + float(RowCount - 1) * gap;
     const float x0 = o.x + (size.x - panel_w) * 0.5f, x1 = x0 + panel_w;
     const float top = o.y + std::max(110.0f * px, (size.y - panel_h) * 0.42f);
-    dl->AddRectFilled(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Panel, 10.0f * px);
-    dl->AddRect(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Frame, 10.0f * px, 0, line);
+    dl->AddRectFilled(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Panel);
+    dl->AddRect(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Frame, 0.0f, 0, line);
 
     const char* title = "DISPLAY SETTINGS";
     const float title_size = 46.0f * px, title_w = font->CalcTextSizeA(title_size, FLT_MAX, 0.0f, title).x;
@@ -622,7 +647,7 @@ void ExitPromptBox() {
                  ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoBackground | ImGuiWindowFlags_NoInputs |
                      ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
     ImDrawList* dl = ImGui::GetWindowDrawList();
-    ImFont* font = ImGui::GetFont();
+    ImFont* font = exit_font;
     const ImVec2 o = viewport->Pos, size = viewport->Size;
     const float right = o.x + size.x, bottom = o.y + size.y, line = std::max(1.0f, 2.0f * px);
     dl->AddRectFilled(o, ImVec2(right, bottom), PageInk::Shade);
@@ -631,8 +656,8 @@ void ExitPromptBox() {
     const float panel_w = std::min(size.x - 80.0f * px, 640.0f * px), panel_h = pad * 2.0f + row_h * 2.0f + gap;
     const float x0 = o.x + (size.x - panel_w) * 0.5f, x1 = x0 + panel_w;
     const float top = o.y + (size.y - panel_h) * 0.5f;
-    dl->AddRectFilled(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Panel, 10.0f * px);
-    dl->AddRect(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Frame, 10.0f * px, 0, line);
+    dl->AddRectFilled(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Panel);
+    dl->AddRect(ImVec2(x0, top), ImVec2(x1, top + panel_h), PageInk::Frame, 0.0f, 0, line);
 
     const char* title = "EXIT RESOGUN?";
     const float title_size = 46.0f * px, title_w = font->CalcTextSizeA(title_size, FLT_MAX, 0.0f, title).x;
@@ -892,6 +917,9 @@ void ConfigureContext() {
     font_config.FontDataOwnedByAtlas = false;
     io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(resogun_font_ttf),
                                    int(resogun_font_ttf_end - resogun_font_ttf), 18.0f, &font_config);
+    exit_font = io.Fonts->AddFontFromMemoryTTF(
+        const_cast<unsigned char*>(resogun_exit_font_ttf),
+        int(resogun_exit_font_ttf_end - resogun_exit_font_ttf), 18.0f, &font_config);
 }
 
 // imgui_mutex held. The backend frees a texture some frames after its last use.
