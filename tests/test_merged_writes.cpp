@@ -66,7 +66,7 @@ static void TestUploadSkipsGpuBytes() {
     page[80] = 1;                                           // the guest changed one GPU byte
     const std::uint64_t base = Addr(page);
     const Runs runs = Split(base, sizeof(page), MergedRangeSplitter::Skip::Unchanged, {range});
-    assert((runs == Runs{{base, 64}, {base + 80, 1}, {base + 128, 128}}));
+    assert((runs == Runs{{base, 64}, {base + 80, 8}, {base + 128, 128}})); // its whole word
 }
 
 static void TestDownloadRunsAndClipping() {
@@ -80,17 +80,55 @@ static void TestDownloadRunsAndClipping() {
     page[100] = 9;                                          // and in the second
     const std::uint64_t base = Addr(page);
     const Runs all = Split(base, sizeof(page), MergedRangeSplitter::Skip::Changed, ranges);
-    assert((all == Runs{{base, 20}, {base + 22, 78}, {base + 101, 155}}));
+    assert((all == Runs{{base, 16}, {base + 24, 72}, {base + 104, 152}}));
     // A copy covering only part of the page: the runs stay inside it.
     const Runs part = Split(base + 21, 60, MergedRangeSplitter::Skip::Changed, ranges);
-    assert((part == Runs{{base + 22, 59}}));
+    assert((part == Runs{{base + 24, 57}}));
     // Nothing changed: the whole range goes through.
     page[20] = page[21] = page[100] = 0;
     const Runs none = Split(base, sizeof(page), MergedRangeSplitter::Skip::Changed, ranges);
     assert((none == Runs{{base, 256}}));
 }
 
+// The crash again, by byte: the guest wrote a code address 0x10981e4000 (+8 of a shader header)
+// over zeros; its high bytes were zeros already. A download must not put two bytes of the GPU's
+// float there (0x3f3d0010981e4000).
+static void TestDownloadKeepsUnchangedBytesOfAWrite() {
+    alignas(64) static std::uint8_t page[64];
+    std::memset(page, 0, sizeof(page));
+    MergedRange range{Addr(page), std::vector<std::uint8_t>(page, page + 64)};
+    const std::uint64_t code = 0x10981e4000;
+    std::memcpy(page + 8, &code, sizeof(code));
+    std::uint8_t gpu[64];
+    std::memset(gpu, 0x3F, sizeof(gpu));
+    const auto write = [&](std::uint64_t start, std::uint64_t bytes) {
+        std::memcpy(std::bit_cast<std::uint8_t*>(start), gpu + (start - Addr(page)), bytes);
+    };
+    MergedRangeSplitter splitter{Addr(page), sizeof(page), MergedRangeSplitter::Skip::Changed};
+    splitter.Add(range, write);
+    splitter.Finish(write);
+    std::uint64_t read;
+    std::memcpy(&read, page + 8, sizeof(read));
+    assert(read == code);
+    assert(page[0] == 0x3F && page[16] == 0x3F);
+}
+
+// A range that starts and ends inside words: only its own bytes are compared and skipped.
+static void TestUnalignedRange() {
+    alignas(64) static std::uint8_t page[64];
+    std::memset(page, 0, sizeof(page));
+    MergedRange range{Addr(page + 4), std::vector<std::uint8_t>(page + 4, page + 20)};
+    page[18] = 5;                                           // in the word [16, 24), range part [16, 20)
+    const std::uint64_t base = Addr(page);
+    const Runs runs = Split(base, sizeof(page), MergedRangeSplitter::Skip::Changed, {range});
+    assert((runs == Runs{{base, 16}, {base + 20, 44}}));
+    const Runs up = Split(base, sizeof(page), MergedRangeSplitter::Skip::Unchanged, {range});
+    assert((up == Runs{{base, 4}, {base + 16, 48}}));
+}
+
 int main() {
+    TestDownloadKeepsUnchangedBytesOfAWrite();
+    TestUnalignedRange();
     TestDownloadKeepsGuestWrites();
     TestUploadSkipsGpuBytes();
     TestDownloadRunsAndClipping();

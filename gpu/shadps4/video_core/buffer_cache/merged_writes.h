@@ -12,9 +12,12 @@
 namespace VideoCore {
 
 // resogun: a GPU-written range of a page that BufferCache::TryMergeWrite let a CPU write into
-// without downloading, with the bytes the guest held there at the fault. Guest bytes still
-// equal to `bytes` are the GPU's (its copy is newer); bytes that differ were written by the
-// guest since (the guest's copy is newer).
+// without downloading, with the bytes the guest held there at the fault. An aligned 8-byte word
+// still equal to `bytes` is the GPU's (its copy is newer); one with any byte that differs was
+// written by the guest since (the guest's copy is newer). By word, not byte: a write rarely
+// changes every byte, and the ones it left as they were (a pointer's zero high bytes over a
+// zero) would take the GPU's (two bytes of a float in a shader header's code address: crash at
+// eboot 0x69d459, 0x3f3d0010981e4000).
 struct MergedRange {
     std::uint64_t address;
     std::vector<std::uint8_t> bytes;
@@ -35,19 +38,19 @@ public:
     template <typename Emit>
     void Add(const MergedRange& range, Emit&& emit) {
         const auto* now = std::bit_cast<const std::uint8_t*>(range.address);
-        const std::size_t count = range.bytes.size();
-        std::size_t i = 0;
-        while (i < count) {
-            if (!Skipped(now[i], range.bytes[i])) {
-                ++i;
+        const std::uint64_t range_end = range.address + range.bytes.size();
+        std::uint64_t at = range.address;
+        while (at < range_end) {
+            if (!Skipped(now, range, at)) {
+                at = WordEnd(at, range_end);
                 continue;
             }
-            const std::size_t first = i;
-            while (i < count && Skipped(now[i], range.bytes[i])) {
-                ++i;
+            const std::uint64_t first = at;
+            while (at < range_end && Skipped(now, range, at)) {
+                at = WordEnd(at, range_end);
             }
-            const std::uint64_t skip_start = std::max(range.address + first, cursor);
-            const std::uint64_t skip_end = std::min<std::uint64_t>(range.address + i, end);
+            const std::uint64_t skip_start = std::max(first, cursor);
+            const std::uint64_t skip_end = std::min(at, end);
             if (skip_start >= skip_end) {
                 continue;
             }
@@ -68,8 +71,18 @@ public:
     }
 
 private:
-    bool Skipped(std::uint8_t now, std::uint8_t saved) const {
-        return (now == saved) == (skip == Skip::Unchanged);
+    static constexpr std::uint64_t Word = 8;
+
+    static std::uint64_t WordEnd(std::uint64_t at, std::uint64_t range_end) {
+        return std::min((at | (Word - 1)) + 1, range_end);
+    }
+
+    /// The part of the aligned word at `at` inside `range`: skipped by this transfer?
+    bool Skipped(const std::uint8_t* now, const MergedRange& range, std::uint64_t at) const {
+        const std::uint64_t offset = at - range.address;
+        const std::uint64_t count = WordEnd(at, range.address + range.bytes.size()) - at;
+        const bool unchanged = std::equal(now + offset, now + offset + count, range.bytes.data() + offset);
+        return unchanged == (skip == Skip::Unchanged);
     }
 
     std::uint64_t cursor;

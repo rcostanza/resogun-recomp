@@ -22,7 +22,9 @@ elif command -v dnf >/dev/null; then
         systemd-libs fontconfig freetype zlib-ng-compat libdrm mesa-libgbm libglvnd-egl libglvnd-glx \
         libstdc++ >/dev/null
 elif command -v pacman >/dev/null; then
-    pacman -Sy --noconfirm --needed python vulkan-icd-loader libx11 libxcb libxext libxfixes libxrender \
+    # -Syu, not -Sy: the image lags the repos, and a partial upgrade can leave new packages (mesa)
+    # needing newer base libraries than the image has ("could not satisfy dependencies").
+    pacman -Syu --noconfirm --needed python vulkan-icd-loader libx11 libxcb libxext libxfixes libxrender \
         libxi libxcursor libxrandr wayland alsa-lib libpulse systemd-libs fontconfig freetype2 zlib \
         libdrm mesa libglvnd gcc-libs >/dev/null
 fi

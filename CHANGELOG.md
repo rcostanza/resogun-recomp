@@ -7,7 +7,8 @@ text as a break.
 
 ## v0.7
 
-- Fixed a crash when a level loads after a long session: the renderer could copy stale GPU data back over memory the game had just written (here a shader's header), so the game read a bad address (issue #1).
+- Fixed a crash when a level loads after a long session: the renderer could copy stale GPU data back over memory the game had just written (here a shader's header), so the game read a bad address (issue #1). This includes writes that left some bytes as they were, such as the zero high bytes of an address.
+- When the graphics driver resets the GPU after a hang, the game now stops with a message in the log instead of freezing until it is killed.
 - The log no longer prints the game's audio levels every 3 seconds; the per-port summary at exit remains.
 
 ## v0.6
