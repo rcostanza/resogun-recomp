@@ -4,7 +4,6 @@
 #define _GNU_SOURCE
 #include <assert.h>
 #include <math.h>
-#define PEAK_INTERVAL 3 /* a level report every 3 buffers instead of every 3 seconds */
 #include "../src/runtime_audio.c"
 
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
@@ -136,24 +135,17 @@ static void test_shape_buffer(void) {
     assert(st[2]>29000 && st[2]<=32767 && st[3]>29000 && st[3]<=32767);
 }
 
-/* The levels the game sends, per channel in the PS4's order, are collected and reported on a schedule. */
+/* The exit report's session counts: buffers with sound, and the loudest sample of any channel. */
 static void test_peaks(void) {
     Port p=make_port(8,1,0,OUT_71,2);
     const float a[16]={0.1f,-0.2f,0,0,0.9f,0,0,0, 0.3f,0,-0.4f,0,0,0,0,0.05f};
     const float b[16]={0};
-    assert(!track_peaks(&p,a) && !track_peaks(&p,b));      /* buffers 1 and 2 */
-    assert(track_peaks(&p,b));                               /* the 3rd is due */
-    const float expect[8]={0.3f,0.2f,0.4f,0,0.9f,0,0,0.05f};
-    for (int c=0;c<8;++c) assert(near(p.peak[c],expect[c]));
-    report_peaks(&p,0);
-    for (int c=0;c<8;++c) assert(p.peak[c]==0);
-    assert(p.peak_buffers==0 && p.peak_reports==1);
-    for (int i=1;i<PEAK_REPORTS;++i) { for (int k=0;k<PEAK_INTERVAL;++k) track_peaks(&p,a); report_peaks(&p,0); }
-    assert(p.peak_reports==PEAK_REPORTS && !track_peaks(&p,a)); /* only the first half minute is logged */
+    track_peaks(&p,a); track_peaks(&p,b);
+    assert(p.data_buffers==2 && p.audible_buffers==1 && near(p.session_peak,0.9f));
     /* Every port is tracked (the game's music plays on a stereo port): two channels of each frame. */
     Port stereo=make_port(2,1,0,2,2);
-    assert(!track_peaks(&stereo,a) && !track_peaks(&stereo,a) && track_peaks(&stereo,a));
-    assert(near(stereo.peak[0],0.1f) && near(stereo.peak[1],0.2f) && stereo.peak[2]==0);
+    track_peaks(&stereo,a);
+    assert(stereo.audible_buffers==1 && near(stereo.session_peak,0.2f));
 }
 
 /* AudioOut end to end on SDL's dummy driver: open a 7.1 float port, output one period, read the

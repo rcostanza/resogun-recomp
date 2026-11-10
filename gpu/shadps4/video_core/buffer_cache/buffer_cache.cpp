@@ -211,40 +211,40 @@ void BufferCache::EmitUploadRange(VAddr addr, u64 size, Emit&& emit) {
         return;
     }
     std::scoped_lock lock{merged_mutex};
-    const VAddr end = addr + size;
-    VAddr cursor = addr;
+    // Runs of bytes the guest still holds as saved are the GPU's: skipped.
+    MergedRangeSplitter splitter{addr, size, MergedRangeSplitter::Skip::Unchanged};
     auto it = merged_pages.lower_bound(Common::AlignDown(addr, TRACKER_BYTES_PER_PAGE));
-    while (it != merged_pages.end() && it->first < end) {
+    while (it != merged_pages.end() && it->first < addr + size) {
         for (const MergedRange& range : it->second) {
-            // Runs of bytes the guest still holds as saved are the GPU's: skipped.
-            const auto* now = std::bit_cast<const u8*>(range.address);
-            std::size_t i = 0;
-            while (i < range.bytes.size()) {
-                if (now[i] != range.bytes[i]) {
-                    ++i;
-                    continue;
-                }
-                const std::size_t skip = i;
-                while (i < range.bytes.size() && now[i] == range.bytes[i]) {
-                    ++i;
-                }
-                const VAddr skip_start = std::max(range.address + skip, cursor);
-                const VAddr skip_end = std::min<VAddr>(range.address + i, end);
-                if (skip_start >= skip_end) {
-                    continue;
-                }
-                if (skip_start > cursor) {
-                    emit(cursor, skip_start - cursor);
-                }
-                cursor = skip_end;
-            }
+            splitter.Add(range, emit);
         }
         it = merged_pages.erase(it);
         merged_count.fetch_sub(1, std::memory_order_relaxed);
     }
-    if (cursor < end) {
-        emit(cursor, end - cursor);
+    splitter.Finish(emit);
+}
+
+// resogun: after TryMergeWrite the page is writable and the guest can write over the GPU-written
+// bytes without a fault. A later download of the page (a write fault elsewhere in its 512 KiB
+// window) must not put the GPU's older copy back over those writes: it did, over a shader
+// header the game had just written (crash at eboot 0x69d459 loading a level's shaders).
+void BufferCache::WriteDownload(VAddr device_addr, const u8* data, u64 size) {
+    const auto write = [&](VAddr start, u64 bytes) {
+        memory->TryWriteBacking(std::bit_cast<u8*>(start), data + (start - device_addr), bytes);
+    };
+    if (merged_count.load(std::memory_order_relaxed) == 0) {
+        write(device_addr, size);
+        return;
     }
+    std::scoped_lock lock{merged_mutex};
+    MergedRangeSplitter splitter{device_addr, size, MergedRangeSplitter::Skip::Changed};
+    auto it = merged_pages.lower_bound(Common::AlignDown(device_addr, TRACKER_BYTES_PER_PAGE));
+    for (; it != merged_pages.end() && it->first < device_addr + size; ++it) {
+        for (const MergedRange& range : it->second) {
+            splitter.Add(range, write);
+        }
+    }
+    splitter.Finish(write);
 }
 
 void BufferCache::ReadMemory(VAddr device_addr, u64 size, bool is_write, bool assume_locks) {
@@ -405,11 +405,13 @@ void BufferCache::DownloadMemory(const Buffer* arena, VAddr device_addr, u64 siz
 
     download.buffer->Invalidate(download.offset, download.size);
     for (const auto& copy : copies) {
-        auto* dst_addr = std::bit_cast<u8*>(arena_base + copy.srcOffset);
-        memory->TryWriteBacking(dst_addr, download.mapped + (copy.dstOffset - download.offset),
-                                copy.size);
+        WriteDownload(arena_base + copy.srcOffset,
+                      download.mapped + (copy.dstOffset - download.offset), copy.size);
     }
     memory_tracker->UnmarkRegionAsGpuModified(device_addr, size);
+    // resogun: the guest now holds the GPU's bytes and its own newer writes; the pages are still
+    // CPU modified, so their next upload sends them whole.
+    ForgetMergedWrites(device_addr, size);
 }
 
 namespace {

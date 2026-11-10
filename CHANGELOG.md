@@ -5,6 +5,11 @@ Each release's section becomes the text of its GitHub release (`tools/release_no
 without one does not publish. Keep each entry on one line: GitHub shows a line break in release
 text as a break.
 
+## v0.7
+
+- Fixed a crash when a level loads after a long session: the renderer could copy stale GPU data back over memory the game had just written (here a shader's header), so the game read a bad address (issue #1).
+- The log no longer prints the game's audio levels every 3 seconds; the per-port summary at exit remains.
+
 ## v0.6
 
 - Setup checks your eboot.bin against the unmodified update 1.10 this release was tested with. For a modified one (a DLC unlocker patch, for example) or another version, it warns that the game may be unstable or crash and asks before going on. All add-ons already show as owned without an unlocker.

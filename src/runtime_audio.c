@@ -36,7 +36,6 @@
 typedef struct {
     int used, type, channels, is_float, frames, sample_bytes, std_layout;
     int out_channels; /* what is sent to the device: `channels`, or 2 / 6 for a 7.1 port folded down */
-    float peak[8]; unsigned peak_buffers, peak_reports; /* levels the game sends, for the log (track_peaks) */
     uint64_t data_buffers, audible_buffers, silent_calls; float session_peak; /* exit report */
     int state_logged;
     int32_t volume[8];
@@ -89,10 +88,6 @@ static int port_range(int type, int *first, int *last) {
     default: return 0;
     }
 }
-#ifndef PEAK_INTERVAL
-#define PEAK_INTERVAL 562 /* buffers (about 3 s) between two level reports */
-#endif
-#define PEAK_REPORTS 60   /* reports per port: the first three minutes of the game */
 
 /* Speaker layouts a 7.1 port can be sent to (settings.ini audio_channels). */
 enum { OUT_STEREO=2, OUT_51=6, OUT_71=8 };
@@ -151,33 +146,18 @@ static void store_sample(void *data, size_t index, float v, int is_float) {
     int16_t o=(int16_t)(t<0 ? t-0.5f : t+0.5f);
     memcpy((char *)data+index*2,&o,2);
 }
-/* Remembers the loudest sample the game sends on each channel (8ch ports in the PS4's order) and,
-   for the whole session, the buffers above -60 dBFS and the loudest sample. Returns 1 once
-   PEAK_INTERVAL buffers are in and the levels are to be logged (PEAK_REPORTS times at most): shows
-   in the log whether the game sends sound at all, and fills the surround channels. */
-static int track_peaks(Port *p, const void *data) {
+/* For the exit report (runtime_audio_report): the buffers above -60 dBFS and the loudest sample
+   of the session, which show in the log whether the game sent sound at all. */
+static void track_peaks(Port *p, const void *data) {
     float loudest=0;
-    for (size_t f=0;f<(size_t)p->frames;++f) for (int c=0;c<p->channels && c<8;++c) {
-        float v=load_sample(data,f*(size_t)p->channels+(size_t)c,p->is_float);
+    for (size_t i=0;i<(size_t)p->frames*(size_t)p->channels;++i) {
+        float v=load_sample(data,i,p->is_float);
         if (v<0) v=-v;
-        if (v>p->peak[c]) p->peak[c]=v;
         if (v>loudest) loudest=v;
     }
     if (loudest>0.001f) ++p->audible_buffers;
     if (loudest>p->session_peak) p->session_peak=loudest;
     ++p->data_buffers;
-    if (p->peak_reports>=PEAK_REPORTS) return 0;
-    return ++p->peak_buffers>=PEAK_INTERVAL;
-}
-static void report_peaks(Port *p, int id) {
-    static const char *const ps4[8]={"L","R","C","LFE","SL","SR","BL","BR"}, *const sdl[8]={"L","R","C","LFE","BL","BR","SL","SR"};
-    const char *const *names=p->std_layout ? sdl : ps4;
-    char line[256];
-    int n=snprintf(line,sizeof(line),"Runtime: audio levels port %d (the game's mix, peak per channel):",id);
-    for (int c=0;c<p->channels && c<8 && n>0 && n<(int)sizeof(line);++c) n+=snprintf(line+n,sizeof(line)-(size_t)n," %s %.2f",names[c],(double)p->peak[c]);
-    puts(line);
-    memset(p->peak,0,sizeof(p->peak));
-    p->peak_buffers=0; ++p->peak_reports;
 }
 
 /* One period of the game's samples to what the device stream takes: the port's per-channel
@@ -349,7 +329,7 @@ static int32_t output_port(int32_t handle, const void *data, int pace, uint64_t 
         /* Port volumes, PS4 8ch to SDL 7.1 order, folded to the device's layout. */
         unsigned char converted[2048*8*4];
         shape_buffer(p,data,converted);
-        if (track_peaks(p,data)) report_peaks(p,(int)(p-ports));
+        track_peaks(p,data);
         if (p->dump) fwrite(converted,1,bytes,p->dump);
         if (p->stats) {
             uint64_t now=now_ns();

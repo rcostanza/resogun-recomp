@@ -16,6 +16,7 @@
 #include "common/types.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/buffer_cache/fault_manager.h"
+#include "video_core/buffer_cache/merged_writes.h"
 #include "video_core/buffer_cache/range_set.h"
 #include "video_core/renderer_vulkan/vk_semaphore.h"
 
@@ -184,12 +185,12 @@ private:
     Buffer gds_buffer;
     RangeSet gpu_modified_ranges;
 
+    /// resogun: writes downloaded GPU bytes to the guest, minus the bytes of merged ranges
+    /// the guest changed after TryMergeWrite (its copy is the newer one there).
+    void WriteDownload(VAddr device_addr, const u8* data, u64 size);
+
     /// resogun: pages TryMergeWrite left without a download, by page address: each GPU-written
     /// range on the page with the bytes the guest held there at the fault.
-    struct MergedRange {
-        VAddr address;
-        std::vector<u8> bytes;
-    };
     std::mutex merged_mutex;
     std::map<VAddr, std::vector<MergedRange>> merged_pages;
     std::atomic<u64> merged_count{0};
