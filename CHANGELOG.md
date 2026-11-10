@@ -5,6 +5,10 @@ Each release's section becomes the text of its GitHub release (`tools/release_no
 without one does not publish. Keep each entry on one line: GitHub shows a line break in release
 text as a break.
 
+## v0.8
+
+- Support for 16:10 resolutions. Steam Deck 🖤
+
 ## v0.7
 
 - Fixed a crash when a level loads after a long session: the renderer could copy stale GPU data back over memory the game had just written (here a shader's header), so the game read a bad address (issue #1). This includes writes that left some bytes as they were, such as the zero high bytes of an address.

@@ -76,23 +76,23 @@ void runtime_game_frame_rate(void) {
     printf("Frame rate: %d FPS (settings.ini frame_rate; engine target %.2f)\n",rate,(double)want);
 }
 
-/* A 4:3, 21:9 or 32:9 output (eboot 01.10). The engine sizes its display buffers from a table at
- * 0xa5d120 (1920x1080 on PS4, 3840x2160 on PS4 Pro) and takes its aspect ratio from the video
- * out's size (emulator_settings.h, resogun_width_4k).
+/* A 4:3, 16:10, 21:9 or 32:9 output (eboot 01.10). The engine sizes its display buffers from a
+ * table at 0xa5d120 (1920x1080 on PS4, 3840x2160 on PS4 Pro) and takes its aspect ratio from the
+ * video out's size (emulator_settings.h, resogun_width_4k).
  * Its render scripts create the scene targets with fixed sizes (mrt_albedo 1920x1080 or 1920x2160
  * checkerboard, SSAO at half, menu_overlay for the pause menu...) through 0x476aa0 (render targets:
  * this, name, format, width, height, options) and 0x478840 and 0x478910 (depth buffers: this,
  * name, width, height, ...); each starts with a jmp to a stub that widens the size before the
- * function's own prologue runs (narrows it, for 4:3). The main menu's panels (menu_slide_*, dummy_depth*) are drawn on
- * 3D cards and keep their size.
+ * function's own prologue runs (narrows it, for 4:3 and 16:10). The main menu's panels
+ * (menu_slide_*, dummy_depth*) are drawn on 3D cards and keep their size.
  * The engine's perspective takes a vertical half-angle tan(fov/2)/sqrt(1+aspect) (measured: the
  * main menu's and the gameplay camera's matrices at 16:9, 21:9 and 32:9), so a wider picture would
  * also see less above and below: 10% at 21:9, 28% at 32:9, with the HUD and the menus, drawn
  * in 3D before the camera, pushed past the top and bottom. Every camera goes through 0x420bd0
  * (this, view, projection, fov, near, far, aspect) with its projection matrix; for the screen's
- * cameras (the aspect of the picture) a copy with 16:9's vertical scale is passed instead, and a
- * fov that gives it, so the picture is the PS4's with more at the sides; at 4:3, 16:9's
- * horizontal scale, the PS4's with more above and below. */
+ * cameras (the aspect of the picture) a copy with the smaller of 16:9's vertical and horizontal
+ * scales is passed instead, and a fov that gives it, so the picture keeps the PS4's view on one
+ * axis and shows more on the other. */
 uint32_t runtime_game_wide_width(const char *name, uint32_t width, uint32_t height, uint32_t width_4k) {
     if (width_4k==3840 || !width_4k || !height) return width;
     if (name && (!strncmp(name,"menu_slide",10) || !strncmp(name,"dummy_depth",11))) return width;

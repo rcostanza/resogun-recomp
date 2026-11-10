@@ -12,11 +12,12 @@ using namespace ResogunSettings;
 using Size = std::pair<int, int>;
 
 int main() {
-    // Shapes: 2560x1080 and 3440x1440 count as 21:9, 1366x768 as 16:9, 16:10 as none.
+    // Shapes: 2560x1080 and 3440x1440 count as 21:9, 1366x768 as 16:9.
     assert(AspectRatioOf(1920, 1080) == Aspect16x9 && AspectRatioOf(1366, 768) == Aspect16x9);
+    assert(AspectRatioOf(1920, 1200) == Aspect16x10 && AspectRatioOf(2560, 1600) == Aspect16x10);
     assert(AspectRatioOf(2560, 1080) == Aspect21x9 && AspectRatioOf(3440, 1440) == Aspect21x9);
     assert(AspectRatioOf(3840, 1080) == Aspect32x9 && AspectRatioOf(5120, 1440) == Aspect32x9);
-    assert(AspectRatioOf(1600, 1200) == Aspect4x3 && AspectRatioOf(1920, 1200) == -1);
+    assert(AspectRatioOf(1600, 1200) == Aspect4x3);
     assert(AspectLabel(2560, 1080) == "21:9" && AspectLabel(1920, 1200) == "16:10");
 
     // The game's width at 2160 lines: 16:9 stays the PS4 Pro's, others follow the size.
@@ -29,6 +30,8 @@ int main() {
     assert((FitAspect(2560, 1440, Aspect16x9) == Size{2560, 1440}));
     assert((FitAspect(2560, 1440, Aspect21x9) == Size{2560, 1098}));
     assert((FitAspect(2560, 1440, Aspect32x9) == Size{2560, 720}));
+    assert((FitAspect(2560, 1440, Aspect16x10) == Size{2304, 1440}));
+    assert((FitAspect(2560, 1600, Aspect16x10) == Size{2560, 1600}));
     assert((FitAspect(3440, 1440, Aspect16x9) == Size{2560, 1440}));
     assert((FitAspect(3440, 1440, Aspect21x9) == Size{3440, 1440}));
     assert((FitAspect(1920, 1200, Aspect16x9) == Size{1920, 1080}));
@@ -37,6 +40,7 @@ int main() {
     // Borderless keeps the desktop; exclusive takes the largest mode of the shape, else the desktop.
     const std::vector<Size> modes169 = {{2560, 1440}, {1920, 1080}, {1280, 720}};
     const std::vector<Size> modes219 = {{3440, 1440}, {2560, 1080}, {1920, 1080}};
+    const std::vector<Size> modes1610 = {{2560, 1600}, {1920, 1200}, {1280, 800}};
     FullscreenChoice c = PickFullscreen(false, Aspect21x9, {2560, 1440}, modes169);
     assert((c.mode == Size{0, 0} && c.picture == Size{2560, 1098}));
     c = PickFullscreen(true, Aspect21x9, {2560, 1440}, modes169);
@@ -47,6 +51,8 @@ int main() {
     assert((c.mode == Size{3440, 1440} && c.picture == Size{3440, 1440}));
     c = PickFullscreen(false, Aspect16x9, {3440, 1440}, modes219);
     assert((c.mode == Size{0, 0} && c.picture == Size{2560, 1440}));
+    c = PickFullscreen(true, Aspect16x10, {2560, 1440}, modes1610);
+    assert((c.mode == Size{2560, 1600} && c.picture == Size{2560, 1600}));
 
     // A window moving to another shape takes the size nearest in height.
     assert((NearestHeight({{3440, 1440}, {2560, 1080}, {1720, 720}}, 1080) == Size{2560, 1080}));

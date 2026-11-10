@@ -31,8 +31,8 @@ public:
     }
     s32 GetGpuId() { static const auto value = s32(Number("RESOGUN_GPU_ID", -1)); return value; }
     // resogun: the video out size, 3840x2160 with render_resolution=4k (resogun_render_4k), half
-    // with 1080p; wider for a wider output (resogun_width_4k: 5120 at 21:9). The engine takes its
-    // aspect ratio from it.
+    // with 1080p; scaled for the output ratio (resogun_width_4k: 3456 at 16:10, 5120 at 21:9).
+    // The engine takes its aspect ratio from it.
     u32 GetInternalScreenWidth() { static const auto value = u32(Number("RESOGUN_INTERNAL_WIDTH", ResogunRender4k() ? resogun_width_4k() : resogun_width_4k() / 2)); return value; }
     u32 GetInternalScreenHeight() { static const auto value = u32(Number("RESOGUN_INTERNAL_HEIGHT", ResogunRender4k() ? 2160 : 1080)); return value; }
     // resogun: Relaxed by default: without readbacks, guest code that reads GPU-written

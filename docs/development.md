@@ -123,13 +123,14 @@ render scripts in the game data: each target is created by name with its size (`
 1920x1080, or 1920x2160 checkerboard in PS4 Pro mode; `ssao_*` at half; `menu_overlay` for the pause
 menu). `RESOGUN_VERBOSE=1` lists the ones a wide picture widens.
 
-### Aspect ratios (4:3, 21:9, 32:9)
+### Aspect ratios (4:3, 16:10, 21:9, 32:9)
 
 The `aspect_ratio` setting picks the picture's shape: in windowed mode the window has it (its size
 list holds only sizes of that ratio), and the fullscreen modes fit it into the screen
 (`ResogunSettings::PickFullscreen`: borderless the desktop, exclusive the largest mode of the ratio,
 bars otherwise). A shape other than 16:9 is made at start: `ResogunSettings::WideWidth4k` turns it
-into a width at 2160 lines (2880 for 4:3, 5120 for 2560x1080, 7680 for 32:9; 3840 for 16:9). These
+into a width at 2160 lines (2880 for 4:3, 3456 for 16:10, 5120 for 2560x1080, 7680 for 32:9;
+3840 for 16:9). These
 things make the engine use it:
 
 - the video out is that wide (half in 1080p mode; `emulator_settings.h`). The engine takes its
@@ -140,17 +141,17 @@ things make the engine use it:
   match;
 - the same function puts a jmp to a stub at the start of the engine's three create functions
   (0x476aa0 render targets, 0x478840 and 0x478910 depth buffers). The stub widens a 16:9 or 8:9
-  (checkerboard) size by width/3840 (narrows it at 4:3) and runs the function's own 17-byte prologue. The main menu's
-  cards (`menu_slide_*`, `dummy_depth*`) keep their size;
+  (checkerboard) size by width/3840 (narrows it at 4:3 and 16:10) and runs the function's own
+  17-byte prologue. The main menu's cards (`menu_slide_*`, `dummy_depth*`) keep their size;
 - the engine's perspective has a vertical half-angle of tan(fov/2)/sqrt(1+aspect) (fitted to the
   main menu's and gameplay camera's matrices at 16:9, 21:9 and 32:9), so on its own a wider picture
   also sees less above and below (10% at 21:9, 28% at 32:9), pushing the HUD and the menus, drawn
   in 3D in front of the camera, past the top and bottom. Every camera passes its projection
   through 0x420bd0 (this, view, projection, fov, near, far, aspect); for perspective cameras of the
-  picture's aspect a stub passes a copy with 16:9's vertical scale (4:3: its horizontal scale,
-  the smaller zoom of the two) and the fov that gives it;
-- at 4:3 the screen's orthographic cameras (x within +-aspect, y +-1) zoom out to 16:9's width:
-  the pause menu is laid out for 16:9 and would lose its sides. All twelve are set once at boot
+  picture's aspect a stub passes a copy with the smaller of 16:9's vertical and horizontal scales
+  (4:3 and 16:10: their horizontal scale) and the fov that gives it;
+- at 4:3 and 16:10 the screen's orthographic cameras (x within +-aspect, y +-1) zoom out to 16:9's
+  width: the pause menu is laid out for 16:9 and would lose its sides. All twelve are set once at boot
   from the same call (0x4226b2), so the main menu's flat layer and backdrop zoom out with it.
 
 The main menu's backdrop only covers the middle 16:9, so the menus show dark sides (dark bands

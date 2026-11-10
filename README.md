@@ -15,8 +15,8 @@ This requires you to provide a decrypted dump of your own copy of the game. Only
 - **30, 60, 90, 120, 144 or 180 FPS.** Higher framerates maybe possible in the future; 30 is for lower-powered PCs.
   - Note: if the game fails to reach the set FPS cap, it will run slower. So choose a cap that your device can reach.
 - **4K support** (not native, the game's own checkerboard mode) or 1080p.
-- **Aspect ratios (16:9, 4:3, 21:9 and 32:9):** ultrawide shows more of the level to the sides, 4:3
-  more above and below, nothing stretched. The menus stay 16:9.
+- **Aspect ratios (16:9, 16:10, 4:3, 21:9 and 32:9):** ultrawide shows more of the level to the sides,
+  16:10 and 4:3 more above and below, nothing stretched. The menus stay 16:9.
 - **DLC support** from your own DLC dumps.
 - **Built in skip intro:** (optionally) boots straight to the main menu, the start-up logos and the "Press X" screen are skipped.
 - **Display settings in the game:** press **F10**, or hold **Select** (View, Back, Share) for two
@@ -76,7 +76,7 @@ Resogun's add-ons (the extra ships and skins) carry no data of their own: the ga
 
 `settings.ini` in your save folder holds every setting, each with a comment. The **Display Settings** panel (**F10**, or hold **Select** for two seconds) changes most of them while the game runs and saves them when it closes:
 
-- aspect ratio (4:3, 16:9, 21:9 or 32:9, at the next start), window mode, windowed resolution (the sizes of
+- aspect ratio (4:3, 16:9, 16:10, 21:9 or 32:9, at the next start), window mode, windowed resolution (the sizes of
   that ratio; applied a second after you stop changing it) and monitor. The fullscreen modes pick their
   size from the screen and the aspect ratio, with black bars when the screen is of another shape;
 - VSync, and tearing with VSync off (the least input delay);

@@ -48,9 +48,9 @@ void runtime_game_set_image(unsigned char *image);
 /* At each flip, on the game's thread (videoout, gnmdriver): settings.ini frame_rate onto the
  * engine's frame clock when they differ. */
 void runtime_game_frame_rate(void);
-/* A wider picture than 16:9 (width_4k = resogun_width_4k(), above 3840): the engine's display
- * size table and the scene targets its render scripts create are widened to it. At load, before
- * the image is protected. 0, with a log line, when the image is not eboot 01.10 as expected. */
+/* A picture other than 16:9 (width_4k = resogun_width_4k(), not 3840): the engine's display size
+ * table and scene targets are resized to it. At load, before the image is protected. 0, with a
+ * log line, when the image is not eboot 01.10 as expected. */
 int runtime_game_widen(unsigned char *image, uint32_t width_4k);
 /* The width a render script's target of width x height (named `name`) gets: 16:9 and 8:9
  * (checkerboard) sizes scale by width_4k/3840; the main menu's panels keep theirs. */

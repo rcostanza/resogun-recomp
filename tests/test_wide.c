@@ -1,4 +1,4 @@
-/* The 4:3 / 21:9 / 32:9 resizing (src/runtime_game.c): which render targets widen, and the stubs that
+/* The non-16:9 resizing (src/runtime_game.c): which render targets widen or narrow, and the stubs that
  * runtime_game_widen puts in front of the engine's create functions, run on stand-ins with the
  * same prologues in an image-sized RWX buffer. */
 #include <assert.h>
@@ -61,6 +61,9 @@ int main(void) {
     assert(runtime_game_wide_width("menu_slide_8", 1728, 972, 5120) == 1728);
     assert(runtime_game_wide_width("dummy_depth_xp_bar", 1728, 972, 5120) == 1728);
     assert(runtime_game_wide_width("mrt_albedo", 1920, 1080, 3840) == 1920);
+    /* 16:10 at 2160 lines is 3456 pixels; its 1080p target is half. */
+    assert(runtime_game_wide_width("mrt_albedo", 1920, 1080, 3456) == 1728);
+    assert(runtime_game_wide_width("mrt_albedo", 1920, 2160, 3456) == 1728);
     assert(runtime_game_wide_width(NULL, 1920, 1080, 7680) == 3840); /* 32:9 */
     /* 3440x1440 (5168): widths stay even. */
     assert(runtime_game_wide_width("x", 960, 540, 5168) == 1292);
@@ -134,6 +137,28 @@ int main(void) {
     float ortho43[16] = {0.75f, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, -1, 1};
     assert(close_to(((SetCamera)(narrow + 0x420bd0))(NULL, view, ortho43, 1.5708f, 1, 2, a43), 1.5708f + 0.75f));
     assert(ortho43[5] == 1.0f);
+
+    /* 16:10 (3456x2160): the game narrows the scene to 1728x1080 and retains 16:9's width. */
+    unsigned char *sixteen_ten = runtime_low_map(size, 0);
+    assert(sixteen_ten);
+    memset(sixteen_ten, 0xcc, size);
+    memcpy(sixteen_ten + 0xa5d120, table, sizeof table);
+    stand_in(sixteen_ten + 0x476aa0, 0x28, 0xc8);
+    stand_in(sixteen_ten + 0x478840, 0x18, 0xd0);
+    stand_in(sixteen_ten + 0x478910, 0x18, 0xd0);
+    camera_stand_in(sixteen_ten + 0x420bd0);
+    assert(runtime_game_widen(sixteen_ten, 3456));
+    sizes = (const uint32_t *)(sixteen_ten + 0xa5d120);
+    assert(sizes[0] == 1728 && sizes[2] == 3456);
+    assert(((CreateTarget)(sixteen_ten + 0x476aa0))(NULL, "mrt_albedo", 0xfac00a, 1920, 1080, NULL) == 1728);
+    const float a1610 = 16.0f / 10.0f;
+    const float m5_1610 = sqrtf(1.0f + a1610) / tanf(fov * 0.5f);
+    float menu1610[16] = {m5_1610 / a1610, 0, 0, 0, 0, m5_1610, 0, 0, 0, 0, 1.07143f, 1, 0, 0, -21.42857f, 0};
+    const float scale1610 = fminf(sqrtf((1.0f + 16.0f / 9.0f) / (1.0f + a1610)),
+                                  sqrtf((1.0f + 16.0f / 9.0f) / (1.0f + a1610)) * a1610 * 9.0f / 16.0f);
+    const float fov1610 = 2.0f * atanf(tanf(fov * 0.5f) / scale1610);
+    assert(close_to(((SetCamera)(sixteen_ten + 0x420bd0))(NULL, view, menu1610, fov, 20, 300, a1610),
+                    fov1610 + m5_1610 * scale1610));
     puts("wide: ok");
     return 0;
 }

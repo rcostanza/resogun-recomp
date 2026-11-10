@@ -59,9 +59,10 @@
     },
     {
       "id": "aspect_ratio", "label": "Aspect ratio",
-      "help": "Ultrawide shows more of the level to the sides, 4:3 more above and below. Nothing is stretched; the menus stay 16:9.",
+      "help": "Ultrawide shows more of the level to the sides, 16:10 and 4:3 more above and below. Nothing is stretched; the menus stay 16:9.",
       "choices": [
         { "label": "16:9", "set": { "aspect_ratio": "16:9" } },
+        { "label": "16:10", "set": { "aspect_ratio": "16:10" } },
         { "label": "21:9", "set": { "aspect_ratio": "21:9" } },
         { "label": "32:9", "set": { "aspect_ratio": "32:9" } },
         { "label": "4:3", "set": { "aspect_ratio": "4:3" } }

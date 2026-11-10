@@ -949,7 +949,7 @@ int main(int argc, char **argv) {
                     missing, r.rewritten, r.jmp, r.relocated, r.int3, r.skipped);
         protect(stubs, stub_area, 5);
     }
-    /* A 4:3, 21:9 or 32:9 output: the engine is resized before its code runs (runtime_game.c). */
+    /* A 4:3, 16:10, 21:9 or 32:9 output: the engine is resized before its code runs (runtime_game.c). */
     if (gpu_enabled && resogun_width_4k() != 3840 && !runtime_game_widen(image, (uint32_t)resogun_width_4k()))
         resogun_set_width_4k(3840);
     runtime_set_report_hook(loader_report_hook);
