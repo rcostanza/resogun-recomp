@@ -1,10 +1,12 @@
 /* Double-click start (Windows Explorer, a Linux file manager or menu entry, a shortcut). A release
  * folder (tools/package.py) holds this exe, its libraries, release.txt and resogun-setup; the
- * setup adds the prepared game image in game/, settings.ini and paths.ini:
+ * setup adds the prepared game image in game/, the shaders/ folder (the shader cache),
+ * settings.ini and paths.ini:
  *     [paths]
  *     game=<the dump: eboot.bin, sce_module, sce_sys, audio.pck, stream.dat>
  *     save=<saves and the launch log: what run.py calls --user>
- *     cache=<optional: shader caches; by default the folder every copy shares, as run.py's>
+ *     cache=<optional: the GPU library's logs and screenshots; by default the folder every copy
+ *            shares, as run.py's>
  *     dlc=<optional: one more folder of DLC, read next to save's addcont, e.g. shadPS4's addcont>
  * Without paths.ini here, the per-user copy the setup also writes is read (user_paths_ini).
  * Narrow strings are UTF-8 (Windows: the manifest's activeCodePage). */
@@ -428,6 +430,11 @@ int launch_from_paths_ini(int *argc, char ***argv) {
     set_env("RESOGUN_CONFIG_DEFAULT", config_default);
     /* Before anything asks the GPU library for its folders (shadps4 common/path_util.cpp). */
     set_env("RESOGUN_GPU_USER_DIR", cache);
+    /* The shader cache: shaders/ next to this exe (the GPU library moves an older one in). */
+    char shaders[PATH_CHARS];
+    snprintf(shaders, sizeof shaders, "%s" SEP "shaders", exe_dir);
+    make_dirs(shaders);
+    set_env("RESOGUN_SHADER_DIR", shaders);
 
     int count = 0;
     args[count++] = (*argv)[0];

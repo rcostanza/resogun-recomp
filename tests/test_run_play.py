@@ -20,7 +20,7 @@ class RunPlayTests(unittest.TestCase):
         process.wait.return_value = 0
 
         def exe_run(command, **kwargs):
-            seen.append(os.environ.get('RESOGUN_GPU_USER_DIR'))
+            seen.append((os.environ.get('RESOGUN_GPU_USER_DIR'), os.environ.get('RESOGUN_SHADER_DIR')))
             return features
 
         with tempfile.TemporaryDirectory() as folder:
@@ -36,8 +36,10 @@ class RunPlayTests(unittest.TestCase):
                     mock.patch.object(run, 'find_exe', return_value=Path('resogun.exe')), \
                     mock.patch.object(run.subprocess, 'run', side_effect=exe_run), \
                     mock.patch.object(run.subprocess, 'Popen', return_value=process) as popen:
+                os.environ.pop('RESOGUN_SHADER_DIR', None)
                 self.assertEqual(run.main(), 0)
-                self.assertEqual(seen, [str(cache)])
+                # Shader caches go to shaders/ next to the exe, as an installed copy's.
+                self.assertEqual(seen, [(str(cache), str(Path('shaders')))])
                 self.assertIn(str(user.resolve()), popen.call_args.args[0])
             self.assertTrue(user.is_dir())
 

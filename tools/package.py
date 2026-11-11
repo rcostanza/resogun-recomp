@@ -87,8 +87,8 @@ resolution, VSync, 60/90/120/144/180 FPS); F4, or Back on the title screen, asks
 
 settings.ini (made by the setup) holds the window, audio and control options; one in your save
 folder is read instead, and the display settings save there. If the game stops, the reason is in
-resogun.log, in the log folder of your save folder. Shader caches are kept per PC in
-%LOCALAPPDATA%\\Resogun.
+resogun.log, in the log folder of your save folder. Shader caches are kept in the shaders
+folder next to resogun-setup.exe.
 
 Needs Windows 10/11 x64, a CPU with AVX and a GPU with Vulkan 1.3.{python_note}
 Source and license (GPL-2.0-or-later): see LICENSE.txt.
@@ -114,8 +114,8 @@ resolution, VSync, 60/90/120/144/180 FPS); F4, or Back on the title screen, asks
 
 settings.ini (made by the setup) holds the window, audio and control options; one in your save
 folder is read instead, and the display settings save there. If the game stops, the reason is in
-resogun.log, in the log folder of your save folder. Shader caches are kept per PC in
-~/.cache/resogun.
+resogun.log, in the log folder of your save folder. Shader caches are kept in the shaders
+folder next to resogun-setup.
 
 Needs Linux x86-64 with glibc 2.39 or newer (SteamOS 3.7, Ubuntu 24.04, Debian 13, Fedora 40 or
 newer), python3 3.10+ for the setup, a CPU with AVX and a GPU with a Vulkan 1.3 driver.

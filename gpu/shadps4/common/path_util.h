@@ -5,6 +5,7 @@
 
 #include <filesystem>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 namespace Common::FS {
@@ -104,6 +105,13 @@ constexpr auto LOG_FILE = "shad_log.txt";
  * @param new_path New filesystem path
  */
 void SetUserPath(PathType user_path, const std::filesystem::path& new_path);
+
+/**
+ * resogun: the folder of the game's shader and pipeline cache: RESOGUN_SHADER_DIR (the launcher's
+ * shaders folder next to the exe), else the cache folder's <serial> subfolder. The first call
+ * moves a cache an earlier release left in the old place into RESOGUN_SHADER_DIR.
+ */
+[[nodiscard]] const std::filesystem::path& GetShaderCachePath(std::string_view serial);
 
 /**
  * Recursively searches for an installed game by its ID.

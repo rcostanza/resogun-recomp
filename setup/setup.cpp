@@ -296,7 +296,8 @@ void write_paths(const fs::path& ini, const fs::path& game, const fs::path& save
                     "; game: your dump (eboot.bin, sce_module, sce_sys, stream.dat). It is only ever read." + nl +
                     "; save: your saves, and resogun.log in its log folder." + nl +
                     "; dlc: optional, one more folder of DLC (e.g. shadPS4's addcont), next to save's addcont." + nl +
-                    "; Shader caches are shared by every copy of the game: " + cache + nl +
+                    "; Shader caches are in the shaders folder next to " + setup + "." + nl +
+                    "; The GPU logs and screenshots are shared by every copy of the game: " + cache + nl +
                     "; (cache=<folder> moves them)." + nl +
                     "[paths]" + nl +
                     "game=" + narrow(text(game)) + nl +
@@ -675,6 +676,10 @@ fs::path install(const Options& opt, const Log& log) {
             fail(L"cannot write " + text(settings));
         log(L"wrote    settings.ini");
     }
+
+    // The shader cache (src/launcher.c points the game at it).
+    fs::create_directories(root / L"shaders", ec);
+    log(L"created  " + text(root / L"shaders"));
 
     fs::create_directories(save, ec);
     if (!fs::is_directory(save, ec))

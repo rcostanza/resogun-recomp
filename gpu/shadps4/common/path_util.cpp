@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <cstdio>
 #include <fstream>
 #include <unordered_map>
 #include "common/logging/log.h"
@@ -91,7 +92,9 @@ static std::unordered_map<PathType, fs::path>& UserPaths() {
     // resogun: the port keeps GPU caches where RESOGUN_GPU_USER_DIR points.
     const char* port_dir = std::getenv("RESOGUN_GPU_USER_DIR");
     auto user_dir = port_dir ? std::filesystem::path(port_dir) : std::filesystem::current_path() / PORTABLE_DIR;
-    if (!std::filesystem::exists(user_dir)) {
+    // resogun: a folder RESOGUN_GPU_USER_DIR names is created below, never swapped for
+    // shadPS4's own (Linux took ~/.local/share/shadPS4 until the folder existed).
+    if (!port_dir && !std::filesystem::exists(user_dir)) {
         // If it doesn't exist, use the standard path for the platform instead.
         // NOTE: On Windows we currently just create the portable directory instead.
 #ifdef __APPLE__
@@ -165,6 +168,71 @@ const fs::path& GetUserPath(PathType shad_path) {
 
 std::string GetUserPathString(PathType shad_path) {
     return PathToUTF8String(GetUserPath(shad_path));
+}
+
+// resogun: on the first start with a shaders folder, the cache earlier releases kept elsewhere is
+// moved into it: <RESOGUN_GPU_USER_DIR>/cache/<serial> (%LOCALAPPDATA%\Resogun, ~/.cache/resogun
+// or paths.ini's cache=), and on Linux shadPS4's folder, which the port used while the first
+// one did not exist. Only a folder with the port's disk_shaders.bin marker is taken, so an
+// installed shadPS4's own cache stays where it is.
+static void MoveOldShaderCache(const fs::path& to, std::string_view serial) {
+    std::error_code ec;
+    if (fs::exists(to / "profile.bin", ec)) {
+        return;
+    }
+    std::vector<fs::path> old_dirs{GetUserPath(PathType::CacheDir) / serial};
+#ifdef __linux__
+    const char* data_home = getenv("XDG_DATA_HOME");
+    const char* home = getenv("HOME");
+    if (data_home && data_home[0]) {
+        old_dirs.push_back(fs::path(data_home) / "shadPS4" / CACHE_DIR / serial);
+    } else if (home && home[0]) {
+        old_dirs.push_back(fs::path(home) / ".local" / "share" / "shadPS4" / CACHE_DIR / serial);
+    }
+#endif
+    for (const auto& from : old_dirs) {
+        if (!fs::is_regular_file(from / "disk_shaders.bin", ec) || fs::equivalent(from, to, ec)) {
+            continue;
+        }
+        u32 moved = 0, failed = 0;
+        for (const auto& entry : fs::directory_iterator{from, ec}) {
+            const auto target = to / entry.path().filename();
+            std::error_code move_ec;
+            fs::remove_all(target, move_ec);
+            fs::rename(entry.path(), target, move_ec);
+            if (move_ec) {
+                // Another drive: copied, then removed.
+                move_ec.clear();
+                fs::copy(entry.path(), target,
+                         fs::copy_options::recursive | fs::copy_options::overwrite_existing,
+                         move_ec);
+                if (!move_ec) {
+                    fs::remove_all(entry.path(), move_ec);
+                }
+            }
+            move_ec ? ++failed : ++moved;
+        }
+        fs::remove(from, ec);
+        std::printf("Shader cache: moved %u entries from %s to %s%s\n", moved,
+                    PathToUTF8String(from).c_str(), PathToUTF8String(to).c_str(),
+                    failed ? fmt::format(" ({} could not be moved)", failed).c_str() : "");
+        return;
+    }
+}
+
+const fs::path& GetShaderCachePath(std::string_view serial) {
+    static const fs::path path = [serial] {
+        const char* dir = std::getenv("RESOGUN_SHADER_DIR");
+        if (!dir || !dir[0]) {
+            return GetUserPath(PathType::CacheDir) / serial;
+        }
+        fs::path shaders{dir};
+        std::error_code ec;
+        fs::create_directories(shaders, ec);
+        MoveOldShaderCache(shaders, serial);
+        return shaders;
+    }();
+    return path;
 }
 
 void SetUserPath(PathType shad_path, const fs::path& new_path) {

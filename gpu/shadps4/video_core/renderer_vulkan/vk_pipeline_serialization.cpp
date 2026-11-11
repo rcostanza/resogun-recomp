@@ -1286,8 +1286,8 @@ void PipelineCache::StartBinaryConversion() {
         !EmulatorSettings.IsPipelineCacheEnabled()) {
         return;
     }
-    const auto directory = Common::FS::GetUserPath(Common::FS::PathType::CacheDir) /
-                           Common::ElfInfo::Instance().GameSerial() / "pipeline-binaries";
+    const auto directory = Common::FS::GetShaderCachePath(Common::ElfInfo::Instance().GameSerial()) /
+        "pipeline-binaries";
     binary_conversion = new BinaryConversion;
     binary_conversion->thread = std::jthread{[directory](std::stop_token stop) {
         Common::SetCurrentThreadName("resogun:BinaryConvert");

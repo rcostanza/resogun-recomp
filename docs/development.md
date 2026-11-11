@@ -53,7 +53,11 @@ python run.py --timeout 20
   `out/game/missing-imports.txt`). `python run.py prepare` rebuilds the image only.
 - `--guest-arg SWITCH` passes one of the engine's own command-line switches (strings in the eboot:
   `-nosplash`, `-no_video`, `-no_level_intro`, ...).
-- Saves go to `user/` (`--user DIR`), settings to `user/settings.ini`. Shader caches go to one folder
+- Saves go to `user/` (`--user DIR`), settings to `user/settings.ini`. Shader caches go to `shaders/`
+  next to the exe (`out/shaders`; an installed copy's is next to `resogun-setup`), and
+  `RESOGUN_SHADER_DIR` moves it. On the first start with an empty one, the cache earlier releases
+  kept in `<GPU folder>/cache/CUSA00038` is moved in (on Linux also shadPS4's folder, which was used
+  while `~/.cache/resogun` did not exist). The GPU library's logs and screenshots stay in one folder
   per PC, `%LOCALAPPDATA%\Resogun` (`~/.cache/resogun`), shared with installed copies
   (`RESOGUN_GPU_USER_DIR` moves it).
 - Every `settings.ini` key has an environment variable that overrides it, named in

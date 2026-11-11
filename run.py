@@ -9,7 +9,8 @@
 Options: --game DIR (the decrypted dump; default RESOGUN_GAME_DIR), --timeout SECONDS (play only),
 --out DIR (the game image, default out/game), --dlc DIR (one more folder of DLC next to the save's
 addcont, e.g. shadPS4's addcont; default RESOGUN_DLC_DIR). Other arguments go to resogun. Saves land in
-user/, shader caches in the folder every copy of the game shares (shared_cache_dir), options in
+user/, shader caches in shaders/ next to the exe (out/shaders; RESOGUN_SHADER_DIR moves it), the GPU
+library's logs in the folder every copy of the game shares (shared_cache_dir), options in
 user/settings.ini, or settings.ini here until that exists (see settings.example.ini).
 """
 import argparse
@@ -169,6 +170,8 @@ def main():
     user = a.user.resolve()
     user.mkdir(parents=True, exist_ok=True)
     os.environ['RESOGUN_GPU_USER_DIR'] = str(shared_cache_dir())
+    # Shader caches: shaders/ next to the exe, as an installed copy's (src/launcher.c).
+    os.environ.setdefault('RESOGUN_SHADER_DIR', str(exe.parent / 'shaders'))
     # Development runs log every routine event; installed copies only faults, stops and errors.
     os.environ.setdefault('RESOGUN_VERBOSE', '1')
     if a.command == 'check':
