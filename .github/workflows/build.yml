@@ -1,8 +1,9 @@
 # Builds Resogun's runner from source on Windows (MSYS2 CLANG64, as docs/building.md) and Linux,
 # runs the tests and packages each release (stripped, what players get), its symbols and the debug
-# release as the run's artifacts. linux-smoke unpacks the Linux release on other distros. A v* tag
-# publishes the two player packages as a GitHub release once every job has passed, with the tag's
-# section of CHANGELOG.md as its text (tools/release_notes.py).
+# release as the run's artifacts. FFmpeg comes from prebuilt/ (tools/build_ffmpeg.sh), built only when
+# that archive is out of date. linux-smoke unpacks the Linux release on other distros. A v* tag publishes
+# the two player packages as a GitHub release once every job has passed, with the tag's section of
+# CHANGELOG.md as its text (tools/release_notes.py).
 name: build
 
 on:
@@ -46,15 +47,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0 # git describe names the release
+      # The submodules at their pinned commits only, not their whole history.
+      - name: Submodules
+        run: git submodule update --init --recursive --depth 1 --jobs 4
 
       # The runner's own MSYS2 at C:\msys64, where build.sh and package.py look.
       - uses: msys2/setup-msys2@v2
         with:
           msystem: CLANG64
           release: false
-          update: true
+          # The runner image's MSYS2 and the packages below as they come, without a full pacman -Syu.
+          update: false
           install: git patch make
           pacboy: >-
             toolchain:p cmake:p ninja:p pkgconf:p python:p
@@ -65,23 +69,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.15'
-
-      # The minimal FFmpeg (tools/build_ffmpeg.sh): rebuilt only when that script changes. Built and
-      # saved in steps of its own, so a later failure still keeps it; build.sh then finds its stamp.
-      - id: ffmpeg
-        uses: actions/cache/restore@v4
-        with:
-          path: out/ffmpeg
-          key: ffmpeg-${{ runner.os }}-${{ hashFiles('tools/build_ffmpeg.sh') }}
-      - name: FFmpeg
-        if: steps.ffmpeg.outputs.cache-hit != 'true'
-        # The CLANG64 clang and nasm, as build.sh puts them on PATH.
-        run: PATH="/c/msys64/clang64/bin:/c/msys64/usr/bin:$PATH" bash tools/build_ffmpeg.sh out/ffmpeg
-      - if: steps.ffmpeg.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: out/ffmpeg
-          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
 
       # A crashing test exits instead of waiting on a Windows Error Reporting dialog.
       - name: No crash dialogs
@@ -146,26 +133,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: recursive
           fetch-depth: 0 # git describe names the release
+      # The submodules at their pinned commits only, not their whole history.
+      - name: Submodules
+        run: git submodule update --init --recursive --depth 1 --jobs 4
 
       - name: Dependencies
         run: bash .github/scripts/ci-deps.sh
-
-      # FFmpeg as on Windows: restored, or built (with CC=clang-18, as build.sh) and saved at once.
-      - id: ffmpeg
-        uses: actions/cache/restore@v4
-        with:
-          path: out/ffmpeg
-          key: ffmpeg-${{ runner.os }}-${{ hashFiles('tools/build_ffmpeg.sh') }}
-      - name: FFmpeg
-        if: steps.ffmpeg.outputs.cache-hit != 'true'
-        run: bash tools/build_ffmpeg.sh out/ffmpeg
-      - if: steps.ffmpeg.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: out/ffmpeg
-          key: ${{ steps.ffmpeg.outputs.cache-primary-key }}
 
       - name: Build and run the runtime tests
         timeout-minutes: 60

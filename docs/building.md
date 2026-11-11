@@ -30,12 +30,19 @@ Clone the repository with its submodules (imgui, magic_enum, miniz and xbyak, un
 git clone --recurse-submodules <repository URL>
 ```
 
-`build.sh` fetches the submodules itself if the clone was made without them. The first build also
-downloads FFmpeg's source (9.0.2, checked against its SHA-256) and builds the small static FFmpeg
-the runner links into `out/ffmpeg` (`tools/build_ffmpeg.sh`): only the H.264, AAC and PNG decoders,
-the MP4 demuxer and the file protocol, which is all Resogun's movies and the save icons need. That
-takes a few minutes once; later builds reuse it, and it is rebuilt when its version or options
-change. `nasm` gives it its x86 assembly (without it, decoding is slower).
+`build.sh` fetches the submodules itself if the clone was made without them. The runner links a
+small static FFmpeg (9.0.2; `tools/build_ffmpeg.sh`): only the H.264, AAC and PNG decoders, the MP4
+demuxer and the file protocol, which is all Resogun's movies and the save icons need. A build of it
+for each platform is committed in `prebuilt/ffmpeg-windows.tar.xz` and `prebuilt/ffmpeg-linux.tar.xz`,
+and the first build unpacks the one for its platform into `out/ffmpeg`. If that archive was made
+with another version or options than the script names, FFmpeg's source is downloaded (checked
+against its SHA-256) and built instead, which takes a few minutes; `nasm` gives it its x86 assembly
+(without it, decoding is slower). `RESOGUN_FFMPEG_PREBUILT=0` always builds from source.
+
+After changing FFmpeg's version or options, rewrite both archives and commit them with the script:
+`bash tools/build_ffmpeg.sh --pack` on Windows (Git Bash or the MSYS2 shell), and
+`bash tools/pack_ffmpeg_linux.sh`, which builds in an Ubuntu 24.04 container (Docker) so the Linux
+libraries need no newer glibc than the release.
 
 ## 3. Build
 

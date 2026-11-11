@@ -29,11 +29,18 @@ done
 if [[ ! -f gpu/third_party/imgui/imgui.h || ! -f gpu/third_party/xbyak/xbyak/xbyak.h ]]; then
     git submodule update --init --recursive
 fi
-# The minimal static FFmpeg (built once into out/ffmpeg; again when its version or options change).
+# The minimal static FFmpeg in out/ffmpeg: unpacked from prebuilt/, or built when that archive is for
+# another version or options (tools/build_ffmpeg.sh).
 CC="$cc" bash tools/build_ffmpeg.sh out/ffmpeg
 ffmpeg=$PWD/out/ffmpeg
 command -v cygpath >/dev/null && ffmpeg=$(cygpath -m "$ffmpeg")
-cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+# Linux: lld when the compiler finds it (the lld package), which links the runner and the GPU tests
+# much faster than GNU ld. MSYS2 CLANG64 links with lld already.
+linker=()
+if [[ -z $exe ]] && echo 'int main(void) { return 0; }' | "$cc" -x c - -fuse-ld=lld -o /dev/null 2>/dev/null; then
+    linker=(-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -DCMAKE_SHARED_LINKER_FLAGS=-fuse-ld=lld)
+fi
+cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo "${linker[@]}" \
     -DCMAKE_C_COMPILER="$cc" -DCMAKE_CXX_COMPILER="$cxx" -DRESOGUN_FFMPEG_DIR="$ffmpeg" >/dev/null
 if ! ninja -C out/gpu "${targets[@]}" > out/gpu-build.log 2>&1; then
     grep -v '^[[]' out/gpu-build.log | tail -40 >&2

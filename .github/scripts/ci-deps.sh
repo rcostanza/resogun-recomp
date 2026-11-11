@@ -7,7 +7,7 @@ sudo=$([[ $(id -u) == 0 ]] || echo sudo)
 export DEBIAN_FRONTEND=noninteractive
 $sudo apt-get update
 $sudo apt-get install -y --no-install-recommends \
-    clang-18 lld-18 llvm-18 libstdc++-14-dev cmake ninja-build pkg-config git curl ca-certificates file patchelf \
+    clang-18 lld-18 llvm-18 libstdc++-14-dev cmake ninja-build pkg-config git curl ca-certificates file patchelf xz-utils \
     libvulkan-dev glslang-tools libboost-dev libfmt-dev libxxhash-dev libzydis-dev robin-map-dev \
     nasm zlib1g-dev \
     libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev \
