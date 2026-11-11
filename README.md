@@ -4,6 +4,8 @@
 
 [![Get it on RecompLauncher](https://recomplauncher.com/assets/press/launcher/badge-dark.svg)](https://recomplauncher.com/game/resogun-recomp)
 
+[![Get on Quiver Launcher](https://img.shields.io/badge/Get_on-Quiver-blue)](https://quiverlauncher.com/apps/resogun-resogun-ps4-recompiled-to-pc)
+
 An (obviously) unofficial static recompilation of the PS4 version of <b>Resogun</b>, Housemarque's awesome shmup exclusive to PS platforms.
 
 The game's own x86-64 code runs directly on Windows and Linux: the PS4 system libraries it calls are reimplemented, and its GPU commands are drawn with Vulkan.
