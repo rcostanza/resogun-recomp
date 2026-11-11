@@ -443,6 +443,7 @@ private:
     }
 
     void GarbageCollectImages();
+    void SetGcMemoryMarks(s64 device_local_memory);
     void GarbageCollectSamplers();
 
 private:
@@ -464,6 +465,7 @@ private:
     u64 trigger_gc_memory = 0;
     u64 pressure_gc_memory = 0;
     u64 critical_gc_memory = 0;
+    u64 gc_budget_logged = 0; ///< resogun: the budget last logged (discrete GPUs follow it)
     u64 total_used_samplers = 0;
     u64 trigger_gc_samplers = 0;
     u64 pressure_gc_samplers = 0;

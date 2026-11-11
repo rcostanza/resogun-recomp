@@ -5,6 +5,10 @@ Each release's section becomes the text of its GitHub release (`tools/release_no
 without one does not publish. Keep each entry on one line: GitHub shows a line break in release
 text as a break.
 
+## v0.9
+
+- The game now frees video memory sooner when other programs (a browser, Discord, a recorder) take some, which may prevent the crashes after a few levels on 8 GB graphics cards (issue #6).
+
 ## v0.8
 
 - Support for 16:10 resolutions. Steam Deck 🖤

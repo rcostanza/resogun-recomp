@@ -56,7 +56,12 @@ TextureCache::TextureCache(const Vulkan::Instance& instance_, Vulkan::Scheduler&
         return;
     }
 
-    const s64 device_local_memory = static_cast<s64>(instance.GetTotalMemoryBudget());
+    SetGcMemoryMarks(static_cast<s64>(instance.GetTotalMemoryBudget()));
+    gc_budget_logged = instance.GetTotalMemoryBudget();
+}
+
+// The collector's marks for a device-local budget (after the system reserve): shadPS4's rule.
+void TextureCache::SetGcMemoryMarks(s64 device_local_memory) {
     const s64 min_spacing_expected = device_local_memory - 1_GB;
     const s64 min_spacing_critical = device_local_memory - 512_MB;
     const s64 mem_threshold = std::min<s64>(device_local_memory, TARGET_GC_THRESHOLD);
@@ -1669,7 +1674,8 @@ void TextureCache::UntrackImageTail(ImageId image_id) {
 void TextureCache::GarbageCollectImages() {
     ResogunStats::Timer gc_timer{ResogunStats::t_gc};
     if (instance.CanReportMemoryUsage()) {
-        total_used_memory = instance.GetDeviceMemoryUsage();
+        u64 budget_now = 0;
+        total_used_memory = instance.GetDeviceMemoryUsage(&budget_now);
         // resogun: on integrated GPUs (Steam Deck) the usage covers system-memory heaps holding
         // much more than images (buffers backing guest memory), and the startup budget left
         // ~1 GB after its 8 GB system reserve: usage stayed above the critical mark, so the
@@ -1681,11 +1687,33 @@ void TextureCache::GarbageCollectImages() {
             return env ? std::strtoull(env, nullptr, 10) << 20 : 0;
         }();
         if (instance.IsIntegrated() || forced_budget) {
-            const u64 budget = forced_budget ? forced_budget : instance.GetDeviceMemoryBudgetNow();
+            const u64 budget = forced_budget ? forced_budget : budget_now;
             if (budget != 0) {
                 trigger_gc_memory = budget / 10 * 7;
                 pressure_gc_memory = budget / 100 * 85;
                 critical_gc_memory = budget / 100 * 95;
+            }
+        } else if (budget_now != 0) {
+            // resogun: on a discrete GPU the marks came from the budget at start only. Windows
+            // lowers it when other programs take video memory (a browser, a recorder), and the
+            // collector kept to the old marks, so the game could hold more than the driver then
+            // gave it and have its video memory paged (suspected in issue #6: an 8 GB card at
+            // 5.5 GB, device lost after about an hour). The startup rule from the current
+            // budget, with the same system reserve as Instance::CollectPhysicalMemoryInfo.
+            const u64 budget = budget_now - std::min<u64>(budget_now / 8, 1_GB);
+            SetGcMemoryMarks(static_cast<s64>(budget));
+            const u64 change = budget > gc_budget_logged ? budget - gc_budget_logged
+                                                         : gc_budget_logged - budget;
+            // The driver's budget swings by 300-400 MB every few seconds (an RTX 5070 Ti with
+            // another program holding 8 GB): only changes past 1 GB are logged.
+            if (change >= 1_GB) {
+                std::printf("Texture cache: video memory budget %llu MiB (was %llu): pressure "
+                            "%llu, critical %llu MiB\n",
+                            (unsigned long long)(budget >> 20),
+                            (unsigned long long)(gc_budget_logged >> 20),
+                            (unsigned long long)(pressure_gc_memory >> 20),
+                            (unsigned long long)(critical_gc_memory >> 20));
+                gc_budget_logged = budget;
             }
         }
     }

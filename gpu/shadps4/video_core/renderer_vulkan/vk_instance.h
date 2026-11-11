@@ -482,12 +482,10 @@ public:
         return supports_memory_budget;
     }
 
-    /// Returns the amount of memory used.
-    [[nodiscard]] u64 GetDeviceMemoryUsage() const;
-
-    /// resogun: the driver's current budget of the heaps GetDeviceMemoryUsage counts
-    /// (VK_EXT_memory_budget: what this process can use now, other processes included).
-    [[nodiscard]] u64 GetDeviceMemoryBudgetNow() const;
+    /// Returns the amount of memory used. resogun: budget_now, when given, receives the driver's
+    /// current budget of the same heaps (VK_EXT_memory_budget: what this process can use now,
+    /// what other processes hold already taken off), from the same query.
+    [[nodiscard]] u64 GetDeviceMemoryUsage(u64* budget_now = nullptr) const;
 
     /// Returns the total memory budget available to the device.
     [[nodiscard]] u64 GetTotalMemoryBudget() const {
